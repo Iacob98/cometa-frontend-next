@@ -3,14 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  apiClient,
-  geospatialClient,
-  geoRoutesClient,
-  geoLayersClient,
-  geoMeasurementsClient,
-  geoAnnotationsClient,
-  mapTilesClient,
-  geoAnalysisClient
+  geospatialApi,
+  geoRoutesApi,
+  geoLayersApi,
+  geoMeasurementsApi,
+  geoAnnotationsApi,
+  mapTilesApi,
+  geoAnalysisApi
 } from "@/lib/api-client";
 import type {
   GeospatialFeature,
@@ -45,7 +44,7 @@ import type {
 export function useGeospatialFeatures(filters?: GeospatialFilters) {
   return useQuery({
     queryKey: ["geospatial-features", filters],
-    queryFn: () => geospatialClient.getFeatures(filters),
+    queryFn: () => geospatialApi.getFeatures(filters),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -53,7 +52,7 @@ export function useGeospatialFeatures(filters?: GeospatialFilters) {
 export function useGeospatialFeature(id: UUID) {
   return useQuery({
     queryKey: ["geospatial-features", id],
-    queryFn: () => geospatialClient.getFeature(id),
+    queryFn: () => geospatialApi.getFeature(id),
     enabled: !!id,
   });
 }
@@ -63,7 +62,7 @@ export function useCreateGeospatialFeature() {
 
   return useMutation({
     mutationFn: (data: CreateGeospatialFeatureRequest) =>
-      geospatialClient.createFeature(data),
+      geospatialApi.createFeature(data),
     onSuccess: (newFeature) => {
       queryClient.invalidateQueries({ queryKey: ["geospatial-features"] });
       toast.success("Geospatial feature created successfully");
@@ -79,7 +78,7 @@ export function useUpdateGeospatialFeature() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: UUID; data: UpdateGeospatialFeatureRequest }) =>
-      geospatialClient.updateFeature(id, data),
+      geospatialApi.updateFeature(id, data),
     onSuccess: (updatedFeature) => {
       queryClient.invalidateQueries({ queryKey: ["geospatial-features"] });
       queryClient.invalidateQueries({ queryKey: ["geospatial-features", updatedFeature.id] });
@@ -95,7 +94,7 @@ export function useDeleteGeospatialFeature() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: UUID) => geospatialClient.deleteFeature(id),
+    mutationFn: (id: UUID) => geospatialApi.deleteFeature(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geospatial-features"] });
       toast.success("Geospatial feature deleted successfully");
@@ -110,7 +109,7 @@ export function useDeleteGeospatialFeature() {
 export function useGeoRoutes(filters?: GeoRouteFilters) {
   return useQuery({
     queryKey: ["geo-routes", filters],
-    queryFn: () => geoRoutesClient.getRoutes(filters),
+    queryFn: () => geoRoutesApi.getRoutes(filters),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -118,7 +117,7 @@ export function useGeoRoutes(filters?: GeoRouteFilters) {
 export function useGeoRoute(id: UUID) {
   return useQuery({
     queryKey: ["geo-routes", id],
-    queryFn: () => geoRoutesClient.getRoute(id),
+    queryFn: () => geoRoutesApi.getRoute(id),
     enabled: !!id,
   });
 }
@@ -128,7 +127,7 @@ export function useCreateGeoRoute() {
 
   return useMutation({
     mutationFn: (data: CreateGeoRouteRequest) =>
-      geoRoutesClient.createRoute(data),
+      geoRoutesApi.createRoute(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-routes"] });
       toast.success("Route created successfully");
@@ -144,7 +143,7 @@ export function useUpdateGeoRoute() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: UUID; data: UpdateGeoRouteRequest }) =>
-      geoRoutesClient.updateRoute(id, data),
+      geoRoutesApi.updateRoute(id, data),
     onSuccess: (updatedRoute) => {
       queryClient.invalidateQueries({ queryKey: ["geo-routes"] });
       queryClient.invalidateQueries({ queryKey: ["geo-routes", updatedRoute.id] });
@@ -160,7 +159,7 @@ export function useDeleteGeoRoute() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: UUID) => geoRoutesClient.deleteRoute(id),
+    mutationFn: (id: UUID) => geoRoutesApi.deleteRoute(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-routes"] });
       toast.success("Route deleted successfully");
@@ -173,7 +172,7 @@ export function useDeleteGeoRoute() {
 
 export function useOptimizeRoute() {
   return useMutation({
-    mutationFn: (id: UUID) => geoRoutesClient.optimizeRoute(id),
+    mutationFn: (id: UUID) => geoRoutesApi.optimizeRoute(id),
     onSuccess: () => {
       toast.success("Route optimized successfully");
     },
@@ -187,7 +186,7 @@ export function useOptimizeRoute() {
 export function useGeoLayers(filters?: GeoLayerFilters) {
   return useQuery({
     queryKey: ["geo-layers", filters],
-    queryFn: () => geoLayersClient.getLayers(filters),
+    queryFn: () => geoLayersApi.getLayers(filters),
     staleTime: 10 * 60 * 1000, // 10 minutes - layers don't change often
   });
 }
@@ -195,7 +194,7 @@ export function useGeoLayers(filters?: GeoLayerFilters) {
 export function useGeoLayer(id: UUID) {
   return useQuery({
     queryKey: ["geo-layers", id],
-    queryFn: () => geoLayersClient.getLayer(id),
+    queryFn: () => geoLayersApi.getLayer(id),
     enabled: !!id,
   });
 }
@@ -205,7 +204,7 @@ export function useCreateGeoLayer() {
 
   return useMutation({
     mutationFn: (data: CreateGeoLayerRequest) =>
-      geoLayersClient.createLayer(data),
+      geoLayersApi.createLayer(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-layers"] });
       toast.success("Layer created successfully");
@@ -221,7 +220,7 @@ export function useUpdateGeoLayer() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: UUID; data: UpdateGeoLayerRequest }) =>
-      geoLayersClient.updateLayer(id, data),
+      geoLayersApi.updateLayer(id, data),
     onSuccess: (updatedLayer) => {
       queryClient.invalidateQueries({ queryKey: ["geo-layers"] });
       queryClient.invalidateQueries({ queryKey: ["geo-layers", updatedLayer.id] });
@@ -237,7 +236,7 @@ export function useDeleteGeoLayer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: UUID) => geoLayersClient.deleteLayer(id),
+    mutationFn: (id: UUID) => geoLayersApi.deleteLayer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-layers"] });
       toast.success("Layer deleted successfully");
@@ -252,7 +251,7 @@ export function useDeleteGeoLayer() {
 export function useGeoMeasurements(filters?: GeoMeasurementFilters) {
   return useQuery({
     queryKey: ["geo-measurements", filters],
-    queryFn: () => geoMeasurementsClient.getMeasurements(filters),
+    queryFn: () => geoMeasurementsApi.getMeasurements(filters),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -260,7 +259,7 @@ export function useGeoMeasurements(filters?: GeoMeasurementFilters) {
 export function useGeoMeasurement(id: UUID) {
   return useQuery({
     queryKey: ["geo-measurements", id],
-    queryFn: () => geoMeasurementsClient.getMeasurement(id),
+    queryFn: () => geoMeasurementsApi.getMeasurement(id),
     enabled: !!id,
   });
 }
@@ -270,7 +269,7 @@ export function useCreateGeoMeasurement() {
 
   return useMutation({
     mutationFn: (data: CreateGeoMeasurementRequest) =>
-      geoMeasurementsClient.createMeasurement(data),
+      geoMeasurementsApi.createMeasurement(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-measurements"] });
       toast.success("Measurement created successfully");
@@ -286,7 +285,7 @@ export function useUpdateGeoMeasurement() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: UUID; data: UpdateGeoMeasurementRequest }) =>
-      geoMeasurementsClient.updateMeasurement(id, data),
+      geoMeasurementsApi.updateMeasurement(id, data),
     onSuccess: (updatedMeasurement) => {
       queryClient.invalidateQueries({ queryKey: ["geo-measurements"] });
       queryClient.invalidateQueries({ queryKey: ["geo-measurements", updatedMeasurement.id] });
@@ -302,7 +301,7 @@ export function useDeleteGeoMeasurement() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: UUID) => geoMeasurementsClient.deleteMeasurement(id),
+    mutationFn: (id: UUID) => geoMeasurementsApi.deleteMeasurement(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-measurements"] });
       toast.success("Measurement deleted successfully");
@@ -317,7 +316,7 @@ export function useDeleteGeoMeasurement() {
 export function useGeoAnnotations(filters?: GeoAnnotationFilters) {
   return useQuery({
     queryKey: ["geo-annotations", filters],
-    queryFn: () => geoAnnotationsClient.getAnnotations(filters),
+    queryFn: () => geoAnnotationsApi.getAnnotations(filters),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -325,7 +324,7 @@ export function useGeoAnnotations(filters?: GeoAnnotationFilters) {
 export function useGeoAnnotation(id: UUID) {
   return useQuery({
     queryKey: ["geo-annotations", id],
-    queryFn: () => geoAnnotationsClient.getAnnotation(id),
+    queryFn: () => geoAnnotationsApi.getAnnotation(id),
     enabled: !!id,
   });
 }
@@ -335,7 +334,7 @@ export function useCreateGeoAnnotation() {
 
   return useMutation({
     mutationFn: (data: CreateGeoAnnotationRequest) =>
-      geoAnnotationsClient.createAnnotation(data),
+      geoAnnotationsApi.createAnnotation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-annotations"] });
       toast.success("Annotation created successfully");
@@ -351,7 +350,7 @@ export function useUpdateGeoAnnotation() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: UUID; data: UpdateGeoAnnotationRequest }) =>
-      geoAnnotationsClient.updateAnnotation(id, data),
+      geoAnnotationsApi.updateAnnotation(id, data),
     onSuccess: (updatedAnnotation) => {
       queryClient.invalidateQueries({ queryKey: ["geo-annotations"] });
       queryClient.invalidateQueries({ queryKey: ["geo-annotations", updatedAnnotation.id] });
@@ -367,7 +366,7 @@ export function useDeleteGeoAnnotation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: UUID) => geoAnnotationsClient.deleteAnnotation(id),
+    mutationFn: (id: UUID) => geoAnnotationsApi.deleteAnnotation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geo-annotations"] });
       toast.success("Annotation deleted successfully");
@@ -382,7 +381,7 @@ export function useDeleteGeoAnnotation() {
 export function useMapTiles(filters?: MapTileFilters) {
   return useQuery({
     queryKey: ["map-tiles", filters],
-    queryFn: () => mapTilesClient.getTiles(filters),
+    queryFn: () => mapTilesApi.getTiles(filters),
     staleTime: 30 * 60 * 1000, // 30 minutes - tiles are cached
   });
 }
@@ -390,7 +389,7 @@ export function useMapTiles(filters?: MapTileFilters) {
 export function useMapTile(id: UUID) {
   return useQuery({
     queryKey: ["map-tiles", id],
-    queryFn: () => mapTilesClient.getTile(id),
+    queryFn: () => mapTilesApi.getTile(id),
     enabled: !!id,
   });
 }
@@ -399,7 +398,7 @@ export function useMapTile(id: UUID) {
 export function useGeoAnalysis() {
   return useMutation({
     mutationFn: (request: GeoAnalysisRequest) =>
-      geoAnalysisClient.performAnalysis(request),
+      geoAnalysisApi.performAnalysis(request),
     onSuccess: () => {
       toast.success("Analysis completed successfully");
     },
@@ -412,7 +411,7 @@ export function useGeoAnalysis() {
 export function useGeoAnalysisResults(analysisId?: UUID) {
   return useQuery({
     queryKey: ["geo-analysis-results", analysisId],
-    queryFn: () => geoAnalysisClient.getAnalysisResults(analysisId!),
+    queryFn: () => geoAnalysisApi.getAnalysisResults(analysisId!),
     enabled: !!analysisId,
   });
 }
@@ -420,7 +419,7 @@ export function useGeoAnalysisResults(analysisId?: UUID) {
 export function useBatchGeoAnalysis() {
   return useMutation({
     mutationFn: (requests: GeoAnalysisRequest[]) =>
-      geoAnalysisClient.performBatchAnalysis(requests),
+      geoAnalysisApi.performBatchAnalysis(requests),
     onSuccess: () => {
       toast.success("Batch analysis completed successfully");
     },
@@ -434,7 +433,7 @@ export function useBatchGeoAnalysis() {
 export function useGPSTracking(userId?: UUID) {
   return useQuery({
     queryKey: ["gps-tracking", userId],
-    queryFn: () => geospatialClient.getGPSLocation(userId!),
+    queryFn: () => geospatialApi.getGPSLocation(userId!),
     enabled: !!userId,
     refetchInterval: 30000, // Update every 30 seconds
     staleTime: 25000, // Consider stale after 25 seconds
@@ -446,7 +445,7 @@ export function useUpdateGPSLocation() {
 
   return useMutation({
     mutationFn: ({ userId, location }: { userId: UUID; location: { latitude: number; longitude: number; accuracy?: number } }) =>
-      geospatialClient.updateGPSLocation(userId, location),
+      geospatialApi.updateGPSLocation(userId, location),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gps-tracking"] });
     },
