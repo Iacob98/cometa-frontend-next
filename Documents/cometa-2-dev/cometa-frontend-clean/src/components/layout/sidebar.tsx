@@ -19,6 +19,7 @@ import {
   Activity,
   Bell,
   Map,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -94,8 +95,14 @@ const navigation: NavItem[] = [
     roles: ["admin", "pm", "viewer"],
   },
   {
+    title: "Financial",
+    href: "/dashboard/financial",
+    icon: DollarSign,
+    roles: ["admin", "pm"],
+  },
+  {
     title: "Activity Log",
-    href: "/dashboard/activity",
+    href: "/dashboard/activities",
     icon: Activity,
     roles: ["admin", "pm"],
   },

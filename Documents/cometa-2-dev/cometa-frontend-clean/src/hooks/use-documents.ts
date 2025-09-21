@@ -1,468 +1,472 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  documentsApi,
-  documentCategoriesApi,
-  documentAccessApi,
-  documentSharesApi,
-  documentTemplatesApi,
-  type Document,
-  type DocumentFilters,
-  type CreateDocumentRequest,
-  type UpdateDocumentRequest,
-  type DocumentVersion,
-  type DocumentAccess,
-  type DocumentShare,
-  type DocumentTemplate,
-  type DocumentCategory,
-  type DocumentSearchRequest,
-  type DocumentSearchResult,
-  type DocumentClassificationRequest,
-  type PaginatedResponse,
-} from "@/lib/api-client";
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import type {
+  WorkerDocument,
+  DocumentCategory,
+  DocumentsResponse,
+  DocumentStatus,
+  DocumentCategoryCode
+} from '@/types';
+
+export interface DocumentFilters {
+  user_id?: string;
+  category_code?: DocumentCategoryCode;
+  status?: DocumentStatus;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface CreateDocumentRequest {
+  user_id: string;
+  category_id: string;
+  document_number?: string;
+  issuing_authority?: string;
+  issue_date?: string;
+  expiry_date?: string;
+  valid_until?: string;
+  file_url: string;
+  file_name: string;
+  file_size?: number;
+  file_type: string;
+  notes?: string;
+}
+
+export interface VerifyDocumentRequest {
+  document_id: string;
+  verified: boolean;
+  notes?: string;
+}
 
 // Query keys
 export const documentKeys = {
-  all: ["documents"] as const,
-  lists: () => [...documentKeys.all, "list"] as const,
+  all: ['documents'] as const,
+  lists: () => [...documentKeys.all, 'list'] as const,
   list: (filters: DocumentFilters) => [...documentKeys.lists(), filters] as const,
-  details: () => [...documentKeys.all, "detail"] as const,
-  detail: (id: string) => [...documentKeys.details(), id] as const,
-  versions: (id: string) => [...documentKeys.all, "versions", id] as const,
-  search: (query: string) => [...documentKeys.all, "search", query] as const,
-  categories: () => [...documentKeys.all, "categories"] as const,
-  category: (code: string) => [...documentKeys.categories(), code] as const,
-  access: (documentId: string) => [...documentKeys.all, "access", documentId] as const,
-  shares: (documentId: string) => [...documentKeys.all, "shares", documentId] as const,
-  templates: () => [...documentKeys.all, "templates"] as const,
-  template: (id: string) => [...documentKeys.templates(), id] as const,
+  categories: () => [...documentKeys.all, 'categories'] as const,
+  stats: () => [...documentKeys.all, 'stats'] as const,
 };
 
-// Document Hooks
-export function useDocuments(filters?: DocumentFilters) {
+// Fetch documents with filters
+export function useDocuments(filters: DocumentFilters = {}) {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, value.toString());
+    }
+  });
+
   return useQuery({
-    queryKey: documentKeys.list(filters || {}),
-    queryFn: () => documentsApi.getDocuments(filters),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    queryKey: documentKeys.list(filters),
+    queryFn: async (): Promise<DocumentsResponse> => {
+      const response = await fetch(`/api/documents?${searchParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+      }
+      return response.json();
+    },
   });
 }
 
-export function useDocument(id: string) {
-  return useQuery({
-    queryKey: documentKeys.detail(id),
-    queryFn: () => documentsApi.getDocument(id),
-    enabled: !!id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-}
-
-export function useDocumentVersions(id: string) {
-  return useQuery({
-    queryKey: documentKeys.versions(id),
-    queryFn: () => documentsApi.getDocumentVersions(id),
-    enabled: !!id,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
+// Upload new document
 export function useUploadDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateDocumentRequest) => documentsApi.uploadDocument(data),
-    onSuccess: (newDocument) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      queryClient.setQueryData(documentKeys.detail(newDocument.id), newDocument);
+    mutationFn: async (data: CreateDocumentRequest) => {
+      const response = await fetch('/api/documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-      // Invalidate related queries
-      if (newDocument.project_id) {
-        queryClient.invalidateQueries({
-          queryKey: documentKeys.list({ project_id: newDocument.project_id })
-        });
-      }
-      if (newDocument.house_id) {
-        queryClient.invalidateQueries({
-          queryKey: documentKeys.list({ house_id: newDocument.house_id })
-        });
-      }
-      if (newDocument.work_entry_id) {
-        queryClient.invalidateQueries({
-          queryKey: documentKeys.list({ work_entry_id: newDocument.work_entry_id })
-        });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload document');
       }
 
-      toast.success("Document uploaded successfully");
+      return response.json();
     },
-    onError: (error) => {
-      toast.error(`Failed to upload document: ${error.message}`);
+    onSuccess: () => {
+      // Invalidate all document queries to refresh data
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      toast.success('Document uploaded successfully');
+    },
+    onError: (error: Error) => {
+      console.error('Failed to upload document:', error);
+      toast.error(error.message || 'Failed to upload document');
     },
   });
 }
 
-export function useUpdateDocument() {
+// Verify document
+export function useVerifyDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateDocumentRequest }) =>
-      documentsApi.updateDocument(id, data),
-    onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: documentKeys.detail(id) });
-      const previousDocument = queryClient.getQueryData(documentKeys.detail(id));
-
-      queryClient.setQueryData(documentKeys.detail(id), (old: Document | undefined) => {
-        if (!old) return old;
-        return { ...old, ...data };
+    mutationFn: async (data: VerifyDocumentRequest) => {
+      const response = await fetch(`/api/documents/${data.document_id}/verify`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          verified: data.verified,
+          notes: data.notes,
+        }),
       });
 
-      return { previousDocument };
-    },
-    onError: (error, { id }, context) => {
-      if (context?.previousDocument) {
-        queryClient.setQueryData(documentKeys.detail(id), context.previousDocument);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to verify document');
       }
-      toast.error(`Failed to update document: ${error.message}`);
+
+      return response.json();
     },
-    onSuccess: (updatedDocument) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      toast.success("Document updated successfully");
+    onSuccess: (_, variables) => {
+      // Invalidate document queries to refresh data
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      toast.success(variables.verified ? 'Document verified successfully' : 'Document verification removed');
     },
-    onSettled: (data, error, { id }) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(id) });
+    onError: (error: Error) => {
+      console.error('Failed to verify document:', error);
+      toast.error(error.message || 'Failed to verify document');
     },
   });
 }
 
+// Delete document
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => documentsApi.deleteDocument(id),
-    onSuccess: (_, deletedId) => {
-      queryClient.removeQueries({ queryKey: documentKeys.detail(deletedId) });
-      queryClient.removeQueries({ queryKey: documentKeys.versions(deletedId) });
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      toast.success("Document deleted successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to delete document: ${error.message}`);
-    },
-  });
-}
-
-export function useDownloadDocument() {
-  return useMutation({
-    mutationFn: async ({ id, filename }: { id: string; filename: string }) => {
-      const blob = await documentsApi.downloadDocument(id);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    },
-    onError: (error) => {
-      toast.error(`Failed to download document: ${error.message}`);
-    },
-  });
-}
-
-export function useCreateDocumentVersion() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, file, comment }: { id: string; file: File; comment?: string }) =>
-      documentsApi.createNewVersion(id, file, comment),
-    onSuccess: (newVersion, { id }) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.versions(id) });
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(id) });
-      toast.success("New document version created");
-    },
-    onError: (error) => {
-      toast.error(`Failed to create new version: ${error.message}`);
-    },
-  });
-}
-
-export function useRevertDocumentVersion() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, versionId }: { id: string; versionId: string }) =>
-      documentsApi.revertToVersion(id, versionId),
-    onSuccess: (revertedDocument) => {
-      queryClient.setQueryData(documentKeys.detail(revertedDocument.id), revertedDocument);
-      queryClient.invalidateQueries({ queryKey: documentKeys.versions(revertedDocument.id) });
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      toast.success("Document reverted to previous version");
-    },
-    onError: (error) => {
-      toast.error(`Failed to revert document: ${error.message}`);
-    },
-  });
-}
-
-// Document Categories Hooks
-export function useDocumentCategories() {
-  return useQuery({
-    queryKey: documentKeys.categories(),
-    queryFn: () => documentCategoriesApi.getCategories(),
-    staleTime: 10 * 60 * 1000, // 10 minutes - categories don't change often
-  });
-}
-
-export function useDocumentCategory(code: string) {
-  return useQuery({
-    queryKey: documentKeys.category(code),
-    queryFn: () => documentCategoriesApi.getCategory(code),
-    enabled: !!code,
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-// Document Search Hook
-export function useSearchDocuments() {
-  return useMutation({
-    mutationFn: (searchRequest: DocumentSearchRequest) =>
-      documentsApi.searchDocuments(searchRequest),
-    onError: (error) => {
-      toast.error(`Search failed: ${error.message}`);
-    },
-  });
-}
-
-// Document Classification Hook
-export function useClassifyDocument() {
-  return useMutation({
-    mutationFn: (data: DocumentClassificationRequest) =>
-      documentsApi.classifyDocument(data),
-    onError: (error) => {
-      toast.error(`Classification failed: ${error.message}`);
-    },
-  });
-}
-
-// OCR Hooks
-export function useGetOCRResult(id: string) {
-  return useQuery({
-    queryKey: [...documentKeys.detail(id), "ocr"],
-    queryFn: () => documentsApi.getOCRResult(id),
-    enabled: !!id,
-    staleTime: 30 * 60 * 1000, // 30 minutes - OCR results don't change
-  });
-}
-
-export function useTriggerOCR() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => documentsApi.triggerOCR(id),
-    onSuccess: (result, id) => {
-      // Invalidate OCR result to trigger refetch
-      queryClient.invalidateQueries({
-        queryKey: [...documentKeys.detail(id), "ocr"]
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
       });
-      toast.success("OCR processing started", {
-        description: `Job ID: ${result.job_id}`,
-      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete document');
+      }
+
+      return response.json();
     },
-    onError: (error) => {
-      toast.error(`Failed to start OCR: ${error.message}`);
+    onSuccess: () => {
+      // Invalidate document queries to refresh data
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      toast.success('Document deleted successfully');
     },
-  });
-}
-
-// Document Access Hooks
-export function useDocumentAccess(documentId: string) {
-  return useQuery({
-    queryKey: documentKeys.access(documentId),
-    queryFn: () => documentAccessApi.getDocumentAccess(documentId),
-    enabled: !!documentId,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useGrantDocumentAccess() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: Omit<DocumentAccess, 'id' | 'granted_at'>) =>
-      documentAccessApi.grantAccess(data),
-    onSuccess: (newAccess) => {
-      queryClient.invalidateQueries({
-        queryKey: documentKeys.access(newAccess.document_id)
-      });
-      toast.success("Access granted successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to grant access: ${error.message}`);
-    },
-  });
-}
-
-export function useRevokeDocumentAccess() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ accessId, documentId }: { accessId: string; documentId: string }) => {
-      return documentAccessApi.revokeAccess(accessId).then(() => documentId);
-    },
-    onSuccess: (documentId) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.access(documentId) });
-      toast.success("Access revoked successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to revoke access: ${error.message}`);
-    },
-  });
-}
-
-// Document Shares Hooks
-export function useDocumentShares(documentId: string) {
-  return useQuery({
-    queryKey: documentKeys.shares(documentId),
-    queryFn: () => documentSharesApi.getDocumentShares(documentId),
-    enabled: !!documentId,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useCreateDocumentShare() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: Omit<DocumentShare, 'id' | 'share_token' | 'access_count' | 'created_at' | 'last_accessed_at'>) =>
-      documentSharesApi.createShare(data),
-    onSuccess: (newShare) => {
-      queryClient.invalidateQueries({
-        queryKey: documentKeys.shares(newShare.document_id)
-      });
-      toast.success("Share link created successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to create share: ${error.message}`);
-    },
-  });
-}
-
-export function useDeleteDocumentShare() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ shareId, documentId }: { shareId: string; documentId: string }) => {
-      return documentSharesApi.deleteShare(shareId).then(() => documentId);
-    },
-    onSuccess: (documentId) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.shares(documentId) });
-      toast.success("Share link deleted successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to delete share: ${error.message}`);
-    },
-  });
-}
-
-// Document Templates Hooks
-export function useDocumentTemplates() {
-  return useQuery({
-    queryKey: documentKeys.templates(),
-    queryFn: () => documentTemplatesApi.getTemplates(),
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-export function useDocumentTemplate(id: string) {
-  return useQuery({
-    queryKey: documentKeys.template(id),
-    queryFn: () => documentTemplatesApi.getTemplate(id),
-    enabled: !!id,
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-export function useCreateDocumentFromTemplate() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ templateId, data }: { templateId: string; data: Record<string, any> }) =>
-      documentTemplatesApi.createDocumentFromTemplate(templateId, data),
-    onSuccess: (newDocument) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      queryClient.setQueryData(documentKeys.detail(newDocument.id), newDocument);
-      toast.success("Document created from template successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to create document from template: ${error.message}`);
+    onError: (error: Error) => {
+      console.error('Failed to delete document:', error);
+      toast.error(error.message || 'Failed to delete document');
     },
   });
 }
 
 // Specialized hooks for common use cases
-export function useProjectDocuments(projectId: string) {
+export function useUserDocuments(userId?: string) {
   return useDocuments({
-    project_id: projectId,
+    user_id: userId,
     page: 1,
     per_page: 50,
   });
 }
 
-export function useHouseDocuments(houseId: string) {
+export function useDocumentsByCategory(categoryCode?: DocumentCategoryCode) {
   return useDocuments({
-    house_id: houseId,
-    page: 1,
-    per_page: 20,
-  });
-}
-
-export function useWorkEntryDocuments(workEntryId: string) {
-  return useDocuments({
-    work_entry_id: workEntryId,
-    page: 1,
-    per_page: 20,
-  });
-}
-
-export function useRecentDocuments() {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  return useDocuments({
-    uploaded_after: thirtyDaysAgo.toISOString(),
-    page: 1,
-    per_page: 20,
-  });
-}
-
-export function useDocumentsByCategory(category: string) {
-  return useDocuments({
-    category: category as any,
+    category_code: categoryCode,
     page: 1,
     per_page: 50,
   });
 }
 
-// Helper hook for document actions
+export function useExpiredDocuments() {
+  return useDocuments({
+    status: 'expired',
+    page: 1,
+    per_page: 50,
+  });
+}
+
+export function useExpiringDocuments() {
+  return useDocuments({
+    status: 'expiring_soon',
+    page: 1,
+    per_page: 50,
+  });
+}
+
+export function usePendingVerifications() {
+  return useDocuments({
+    status: 'pending',
+    page: 1,
+    per_page: 50,
+  });
+}
+
+// Document categories and status constants
+export const DOCUMENT_CATEGORIES: DocumentCategoryCode[] = [
+  'WORK_PERMIT',
+  'INSURANCE',
+  'ID_DOCUMENT',
+  'VISA',
+  'MEDICAL',
+  'SAFETY_TRAINING',
+  'PASSPORT',
+  'DRIVING_LICENSE',
+];
+
+export const DOCUMENT_STATUSES: DocumentStatus[] = [
+  'active',
+  'expired',
+  'expiring_soon',
+  'pending',
+  'inactive',
+];
+
+// Helper function to get status label
+export function getStatusLabel(status: DocumentStatus): string {
+  const labels: Record<DocumentStatus, string> = {
+    active: 'Active',
+    expired: 'Expired',
+    expiring_soon: 'Expiring Soon',
+    pending: 'Pending Verification',
+    inactive: 'Inactive',
+  };
+
+  return labels[status] || status;
+}
+
+// Helper function to get status color
+export function getStatusColor(status: DocumentStatus): string {
+  const colors: Record<DocumentStatus, string> = {
+    active: 'bg-green-100 text-green-800',
+    expired: 'bg-red-100 text-red-800',
+    expiring_soon: 'bg-yellow-100 text-yellow-800',
+    pending: 'bg-blue-100 text-blue-800',
+    inactive: 'bg-gray-100 text-gray-800',
+  };
+
+  return colors[status] || 'bg-gray-100 text-gray-800';
+}
+
+// Helper function to get category label
+export function getCategoryLabel(categoryCode: DocumentCategoryCode): string {
+  const labels: Record<DocumentCategoryCode, string> = {
+    WORK_PERMIT: 'Work Permit',
+    INSURANCE: 'Insurance',
+    ID_DOCUMENT: 'ID Document',
+    VISA: 'Visa',
+    MEDICAL: 'Medical Certificate',
+    SAFETY_TRAINING: 'Safety Training',
+    PASSPORT: 'Passport',
+    DRIVING_LICENSE: 'Driving License',
+  };
+
+  return labels[categoryCode] || categoryCode.replace(/_/g, ' ');
+}
+
+// Helper function to check if document is expiring soon
+export function isExpiringSign(document: WorkerDocument): boolean {
+  if (!document.expiry_date) return false;
+
+  const expiry = new Date(document.expiry_date);
+  const now = new Date();
+  const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
+}
+
+// Helper function to check if document is expired
+export function isExpired(document: WorkerDocument): boolean {
+  if (!document.expiry_date) return false;
+
+  const expiry = new Date(document.expiry_date);
+  const now = new Date();
+
+  return expiry < now;
+}
+
+// Helper function to get days until expiry
+export function getDaysUntilExpiry(document: WorkerDocument): number | null {
+  if (!document.expiry_date) return null;
+
+  const expiry = new Date(document.expiry_date);
+  const now = new Date();
+
+  return Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Helper function to format file size
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Helper function to get file type icon
+export function getFileTypeIcon(fileType: string): string {
+  if (fileType.includes('pdf')) return '📄';
+  if (fileType.includes('image')) return '🖼️';
+  if (fileType.includes('word') || fileType.includes('document')) return '📝';
+  if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
+  if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📺';
+  return '📎';
+}
+
+// Document categories hook - get all available categories
+export function useDocumentCategories() {
+  return useQuery({
+    queryKey: documentKeys.categories(),
+    queryFn: async (): Promise<DocumentCategory[]> => {
+      const response = await fetch('/api/documents');
+      if (!response.ok) {
+        throw new Error('Failed to fetch document categories');
+      }
+      const data = await response.json();
+      return data.categories || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Document search hook - search across document content
+export function useSearchDocuments() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (searchRequest: {
+      query: string;
+      include_content?: boolean;
+      highlight?: boolean;
+      fuzzy?: boolean;
+    }) => {
+      const searchParams = new URLSearchParams();
+      searchParams.append('search', searchRequest.query);
+      if (searchRequest.include_content) searchParams.append('include_content', 'true');
+      if (searchRequest.highlight) searchParams.append('highlight', 'true');
+      if (searchRequest.fuzzy) searchParams.append('fuzzy', 'true');
+
+      const response = await fetch(`/api/documents/search?${searchParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to search documents');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Cache search results temporarily
+      queryClient.setQueryData(['documents', 'search', data.query], data);
+    },
+    onError: (error: Error) => {
+      toast.error(`Search failed: ${error.message}`);
+    },
+  });
+}
+
+// Document actions hook - for action menus and operations
 export function useDocumentActions() {
-  const uploadDocument = useUploadDocument();
-  const updateDocument = useUpdateDocument();
-  const deleteDocument = useDeleteDocument();
-  const downloadDocument = useDownloadDocument();
-  const createVersion = useCreateDocumentVersion();
-  const revertVersion = useRevertDocumentVersion();
+  const queryClient = useQueryClient();
+
+  const shareDocument = useMutation({
+    mutationFn: async ({ documentId, accessLevel }: { documentId: string; accessLevel: 'public' | 'private' | 'team' }) => {
+      const response = await fetch(`/api/documents/${documentId}/share`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_level: accessLevel }),
+      });
+      if (!response.ok) throw new Error('Failed to share document');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      toast.success('Document sharing updated');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const downloadDocument = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}/download`);
+      if (!response.ok) throw new Error('Failed to download document');
+      const blob = await response.blob();
+      return { blob, response };
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const duplicateDocument = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}/duplicate`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to duplicate document');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      toast.success('Document duplicated');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return {
-    upload: uploadDocument.mutate,
-    update: updateDocument.mutate,
-    delete: deleteDocument.mutate,
-    download: downloadDocument.mutate,
-    createVersion: createVersion.mutate,
-    revertVersion: revertVersion.mutate,
-    isLoading: uploadDocument.isPending ||
-                updateDocument.isPending ||
-                deleteDocument.isPending ||
-                downloadDocument.isPending ||
-                createVersion.isPending ||
-                revertVersion.isPending,
+    shareDocument,
+    downloadDocument,
+    duplicateDocument,
   };
+}
+
+// Document classification hook - for auto-categorizing documents
+export function useClassifyDocument() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      // Simple classification based on file extension and name
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type.toLowerCase();
+
+      // Classify based on file name patterns
+      if (fileName.includes('passport') || fileName.includes('паспорт')) {
+        return { category_code: 'PASSPORT', confidence: 0.9 };
+      }
+      if (fileName.includes('visa') || fileName.includes('виза')) {
+        return { category_code: 'VISA', confidence: 0.85 };
+      }
+      if (fileName.includes('permit') || fileName.includes('разрешение')) {
+        return { category_code: 'WORK_PERMIT', confidence: 0.8 };
+      }
+      if (fileName.includes('insurance') || fileName.includes('страхов')) {
+        return { category_code: 'INSURANCE', confidence: 0.8 };
+      }
+      if (fileName.includes('medical') || fileName.includes('медицин')) {
+        return { category_code: 'MEDICAL', confidence: 0.75 };
+      }
+      if (fileName.includes('safety') || fileName.includes('безопасн')) {
+        return { category_code: 'SAFETY_TRAINING', confidence: 0.75 };
+      }
+      if (fileName.includes('license') || fileName.includes('лицензи')) {
+        return { category_code: 'DRIVING_LICENSE', confidence: 0.7 };
+      }
+
+      // Default to ID document for images
+      if (fileType.includes('image')) {
+        return { category_code: 'ID_DOCUMENT', confidence: 0.5 };
+      }
+
+      // Default classification
+      return { category_code: 'ID_DOCUMENT', confidence: 0.3 };
+    },
+    onError: (error: Error) => {
+      console.warn('Document classification failed:', error);
+    },
+  });
 }

@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Plus, Search, Users, UserPlus, Eye, Edit, Trash2, Phone, Mail, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,20 +21,88 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { useTeams, useDeleteCrew } from "@/hooks/use-teams";
-import { useUsers } from "@/hooks/use-users";
+import { useTeams, useDeleteCrew, useCreateTeam, useUpdateTeam, useForemenUsers } from "@/hooks/use-teams";
+import { useUsers, useCreateUser } from "@/hooks/use-users";
 import { usePermissions } from "@/hooks/use-auth";
+
+// Validation schema for creating users
+const createUserSchema = z.object({
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
+  email: z.string().email("Valid email is required").optional(),
+  phone: z.string().min(10, "Valid phone number is required").optional(),
+  role: z.enum(["admin", "pm", "foreman", "crew", "worker", "viewer"]),
+  lang_pref: z.enum(["de", "en", "ru", "uz", "tr"]),
+}).refine((data) => data.email || data.phone, {
+  message: "Either email or phone is required",
+  path: ["email"],
+});
+
+type CreateUserFormData = z.infer<typeof createUserSchema>;
+
+// Validation schema for creating/editing teams
+const teamSchema = z.object({
+  name: z.string().min(1, "Team name is required"),
+  foreman_user_id: z.string().optional(),
+  project_id: z.string().optional(),
+  description: z.string().optional(),
+});
+
+type TeamFormData = z.infer<typeof teamSchema>;
 
 export default function TeamsPage() {
   const router = useRouter();
   const { canManageTeams } = usePermissions();
   const deleteCrew = useDeleteCrew();
+  const createUser = useCreateUser();
+  const createTeam = useCreateTeam();
+  const updateTeam = useUpdateTeam();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [showCreateTeamDialog, setShowCreateTeamDialog] = useState(false);
+  const [showEditTeamDialog, setShowEditTeamDialog] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<any>(null);
+
+  const createUserForm = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      role: "crew",
+      lang_pref: "de",
+    },
+  });
+
+  const createTeamForm = useForm<TeamFormData>({
+    resolver: zodResolver(teamSchema),
+    defaultValues: {
+      name: "",
+      foreman_user_id: "none",
+      project_id: "none",
+      description: "",
+    },
+  });
+
+  const editTeamForm = useForm<TeamFormData>({
+    resolver: zodResolver(teamSchema),
+    defaultValues: {
+      name: "",
+      foreman_user_id: "none",
+      project_id: "none",
+      description: "",
+    },
+  });
 
   const { data: crews, isLoading: crewsLoading, error: crewsError } = useTeams();
   const { data: usersResponse, isLoading: usersLoading } = useUsers();
+  const { data: foremenUsers } = useForemenUsers();
 
   const users = usersResponse?.items || [];
   const availableWorkers = users.filter(user =>
@@ -45,6 +116,63 @@ export default function TeamsPage() {
   const handleDeleteCrew = async (crewId: string, crewName: string) => {
     if (confirm(`Are you sure you want to delete "${crewName}"? This action cannot be undone.`)) {
       await deleteCrew.mutateAsync(crewId);
+    }
+  };
+
+  const handleCreateUser = async (data: CreateUserFormData) => {
+    try {
+      await createUser.mutateAsync(data);
+      setShowCreateUserDialog(false);
+      createUserForm.reset();
+    } catch (error) {
+      // Error is handled by the mutation
+      console.error("Failed to create user:", error);
+    }
+  };
+
+  const handleCreateTeam = async (data: TeamFormData) => {
+    try {
+      // Convert "none" values to undefined for API
+      const apiData = {
+        ...data,
+        foreman_user_id: data.foreman_user_id === "none" ? undefined : data.foreman_user_id,
+        project_id: data.project_id === "none" ? undefined : data.project_id,
+      };
+      await createTeam.mutateAsync(apiData);
+      setShowCreateTeamDialog(false);
+      createTeamForm.reset();
+    } catch (error) {
+      // Error is handled by the mutation
+      console.error("Failed to create team:", error);
+    }
+  };
+
+  const handleEditTeam = (team: any) => {
+    setEditingTeam(team);
+    editTeamForm.setValue("name", team.name);
+    editTeamForm.setValue("foreman_user_id", team.foreman?.id || "none");
+    editTeamForm.setValue("project_id", team.project_id || "none");
+    editTeamForm.setValue("description", team.description || "");
+    setShowEditTeamDialog(true);
+  };
+
+  const handleUpdateTeam = async (data: TeamFormData) => {
+    if (!editingTeam) return;
+
+    try {
+      // Convert "none" values to undefined for API
+      const apiData = {
+        ...data,
+        foreman_user_id: data.foreman_user_id === "none" ? undefined : data.foreman_user_id,
+        project_id: data.project_id === "none" ? undefined : data.project_id,
+      };
+      await updateTeam.mutateAsync({ id: editingTeam.id, data: apiData });
+      setShowEditTeamDialog(false);
+      setEditingTeam(null);
+      editTeamForm.reset();
+    } catch (error) {
+      // Error is handled by the mutation
+      console.error("Failed to update team:", error);
     }
   };
 
@@ -88,10 +216,29 @@ export default function TeamsPage() {
           </p>
         </div>
         {canManageTeams && (
-          <Button onClick={() => router.push("/dashboard/teams/new")}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Team
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                createUserForm.setValue("role", "crew");
+                setShowCreateUserDialog(true);
+              }}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Worker
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateUserDialog(true)}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add User
+            </Button>
+            <Button onClick={() => setShowCreateTeamDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Team
+            </Button>
+          </div>
         )}
       </div>
 
@@ -190,7 +337,7 @@ export default function TeamsPage() {
                                 View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => router.push(`/dashboard/teams/${crew.id}/edit`)}
+                                onClick={() => handleEditTeam(crew)}
                               >
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Team
@@ -276,7 +423,7 @@ export default function TeamsPage() {
                             variant="outline"
                             size="sm"
                             className="flex-1"
-                            onClick={() => router.push(`/dashboard/teams/${crew.id}/edit`)}
+                            onClick={() => handleEditTeam(crew)}
                           >
                             <Edit className="mr-2 h-3 w-3" />
                             Edit
@@ -448,6 +595,341 @@ export default function TeamsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account. A PIN code will be automatically generated.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createUserForm}>
+            <form onSubmit={createUserForm.handleSubmit(handleCreateUser)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={createUserForm.control}
+                  name="first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={createUserForm.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={createUserForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="john.doe@example.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createUserForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="tel"
+                        placeholder="+49 30 12345678"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={createUserForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="pm">Project Manager</SelectItem>
+                          <SelectItem value="foreman">Foreman</SelectItem>
+                          <SelectItem value="crew">Crew Member</SelectItem>
+                          <SelectItem value="worker">Worker</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="lang_pref"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Language *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="de">German</SelectItem>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="ru">Russian</SelectItem>
+                          <SelectItem value="uz">Uzbek</SelectItem>
+                          <SelectItem value="tr">Turkish</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateUserDialog(false);
+                    createUserForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createUser.isPending}>
+                  {createUser.isPending ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" />
+                  )}
+                  Create User
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Team Dialog */}
+      <Dialog open={showCreateTeamDialog} onOpenChange={setShowCreateTeamDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Team</DialogTitle>
+            <DialogDescription>
+              Create a new work crew/team with a name and optional foreman assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createTeamForm}>
+            <form onSubmit={createTeamForm.handleSubmit(handleCreateTeam)} className="space-y-4">
+              <FormField
+                control={createTeamForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Team Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Alpha Team, Fiber Crew 1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createTeamForm.control}
+                name="foreman_user_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Foreman (Optional)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select foreman..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No foreman assigned</SelectItem>
+                        {foremenUsers?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name} ({user.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createTeamForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Team specialization or notes..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateTeamDialog(false);
+                    createTeamForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createTeam.isPending}>
+                  {createTeam.isPending ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  Create Team
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Team Dialog */}
+      <Dialog open={showEditTeamDialog} onOpenChange={setShowEditTeamDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Team</DialogTitle>
+            <DialogDescription>
+              Update team information and assignments.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editTeamForm}>
+            <form onSubmit={editTeamForm.handleSubmit(handleUpdateTeam)} className="space-y-4">
+              <FormField
+                control={editTeamForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Team Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Alpha Team, Fiber Crew 1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editTeamForm.control}
+                name="foreman_user_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Foreman</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select foreman..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No foreman assigned</SelectItem>
+                        {foremenUsers?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name} ({user.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editTeamForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Team specialization or notes..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditTeamDialog(false);
+                    setEditingTeam(null);
+                    editTeamForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateTeam.isPending}>
+                  {updateTeam.isPending ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                  ) : (
+                    <Edit className="mr-2 h-4 w-4" />
+                  )}
+                  Update Team
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

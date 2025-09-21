@@ -112,14 +112,157 @@ export function useDeleteCrew() {
   });
 }
 
+// Additional interfaces for project preparation
+export interface ProjectUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  assigned_at: string;
+  assigned_by: string;
+}
+
+export interface GlobalTeam {
+  id: string;
+  name: string;
+  foreman_name?: string;
+  is_active: boolean;
+  project_count?: number;
+  specialization?: string;
+}
+
+// Additional hooks for project preparation
+export function useGlobalTeams() {
+  return useQuery({
+    queryKey: ['global-teams'],
+    queryFn: async (): Promise<GlobalTeam[]> => {
+      const response = await fetch('/api/crews');
+      if (!response.ok) {
+        throw new Error('Failed to fetch global teams');
+      }
+      const crews = await response.json();
+
+      // Transform to GlobalTeam format and count projects per team
+      const projectCounts: Record<string, number> = {};
+      crews.forEach((crew: any) => {
+        if (crew.project_id) {
+          projectCounts[crew.name] = (projectCounts[crew.name] || 0) + 1;
+        }
+      });
+
+      return crews.map((crew: any) => ({
+        id: crew.id,
+        name: crew.name,
+        foreman_name: crew.foreman_name,
+        is_active: crew.is_active,
+        project_count: projectCounts[crew.name] || 0,
+        specialization: 'mixed'
+      }));
+    },
+  });
+}
+
+export function useProjectUsers(projectId: string) {
+  return useQuery({
+    queryKey: ['project-users', projectId],
+    queryFn: async (): Promise<ProjectUser[]> => {
+      // Mock data - in real implementation, fetch from API
+      return [
+        {
+          id: '1',
+          name: 'John Manager',
+          email: 'john@example.com',
+          role: 'pm',
+          assigned_at: '2024-01-15',
+          assigned_by: 'System'
+        },
+      ];
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useForemenUsers() {
+  return useQuery({
+    queryKey: ['foremen-users'],
+    queryFn: async () => {
+      const response = await fetch('/api/users?role=foreman&is_active=true');
+      if (!response.ok) {
+        // Try to get PM users as well if no foremen
+        const pmResponse = await fetch('/api/users?role=pm&is_active=true');
+        if (!pmResponse.ok) {
+          throw new Error('Failed to fetch users');
+        }
+        const pmData = await pmResponse.json();
+        return pmData.items || [];
+      }
+      const data = await response.json();
+
+      // If no foremen, get both foremen and PMs
+      if (data.items.length === 0) {
+        const allResponse = await fetch('/api/users?is_active=true');
+        if (!allResponse.ok) {
+          throw new Error('Failed to fetch users');
+        }
+        const allData = await allResponse.json();
+        return (allData.items || []).filter((user: any) =>
+          user.role === 'foreman' || user.role === 'pm'
+        );
+      }
+
+      return data.items || [];
+    },
+  });
+}
+
+export function useCreateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch('/api/crews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create team');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      if (variables.project_id) {
+        queryClient.invalidateQueries({ queryKey: ['project-teams', variables.project_id] });
+        queryClient.invalidateQueries({ queryKey: ['project-preparation', variables.project_id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['global-teams'] });
+      queryClient.invalidateQueries({ queryKey: teamKeys.crews() });
+      toast.success(data.message || 'Team created successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
 // Specialized hooks
 export function useProjectTeams(projectId: string) {
-  const { data: crews, ...rest } = useTeams();
-
-  return {
-    ...rest,
-    data: crews?.filter(crew => crew.project_id === projectId) || [],
-  };
+  return useQuery({
+    queryKey: ['project-teams', projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/crews?project_id=${projectId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch project teams');
+      }
+      return response.json();
+    },
+    enabled: !!projectId,
+  });
 }
 
 export function useAvailableTeams() {
@@ -129,4 +272,66 @@ export function useAvailableTeams() {
     ...rest,
     data: crews?.filter(crew => !crew.project_id) || [],
   };
+}
+
+export function useUpdateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await fetch(`/api/crews/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update team');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['project-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['global-teams'] });
+      queryClient.invalidateQueries({ queryKey: teamKeys.crews() });
+      queryClient.invalidateQueries({ queryKey: ['project-preparation'] });
+      toast.success(data.message || 'Team updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useDeleteTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/crews/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete team');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['project-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['global-teams'] });
+      queryClient.invalidateQueries({ queryKey: teamKeys.crews() });
+      queryClient.invalidateQueries({ queryKey: ['project-preparation'] });
+      toast.success(data.message || 'Team deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
 }

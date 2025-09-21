@@ -355,3 +355,206 @@ export function usePendingOrders() {
 export function useSupplierOrders(supplierId: string) {
   return useOrders({ supplier_id: supplierId });
 }
+
+// Project Preparation specific hooks
+export interface ProjectMaterial {
+  id: string;
+  material_id: string;
+  name: string;
+  sku?: string;
+  unit: string;
+  description?: string;
+  allocated_qty: number;
+  unit_price: number;
+  total_cost: number;
+  allocation_date: string;
+  return_date?: string;
+  status: 'allocated' | 'used' | 'returned' | 'cancelled';
+  notes?: string;
+  allocated_by_name?: string;
+}
+
+export interface WarehouseMaterial {
+  id: string;
+  name: string;
+  sku?: string;
+  unit: string;
+  description?: string;
+  available_qty: number;
+  total_qty: number;
+  reserved_qty: number;
+  min_stock: number;
+  price: number;
+}
+
+export interface ProjectMaterialsResponse {
+  materials: ProjectMaterial[];
+  summary: {
+    total_materials: number;
+    pending_count: number;
+    used_count: number;
+    total_cost: number;
+  };
+}
+
+export interface MaterialAssignmentData {
+  project_id: string;
+  material_id: string;
+  quantity: number;
+  from_date: string;
+  to_date?: string;
+  notes?: string;
+}
+
+export interface UpdateMaterialAssignmentData {
+  assignment_id: string;
+  quantity: number;
+  unit_price: number;
+  from_date: string;
+  to_date?: string;
+  notes?: string;
+}
+
+export function useProjectMaterials(projectId: string) {
+  return useQuery({
+    queryKey: [...materialKeys.all, "project", projectId],
+    queryFn: async (): Promise<ProjectMaterialsResponse> => {
+      const response = await fetch(`/api/materials/project/${projectId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch project materials');
+      }
+      return response.json();
+    },
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useWarehouseMaterials() {
+  return useQuery({
+    queryKey: [...materialKeys.all, "warehouse"],
+    queryFn: async (): Promise<WarehouseMaterial[]> => {
+      const response = await fetch('/api/materials/warehouse');
+      if (!response.ok) {
+        throw new Error('Failed to fetch warehouse materials');
+      }
+      return response.json();
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+export function useAssignMaterialToProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: MaterialAssignmentData) => {
+      const response = await fetch('/api/materials/assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to assign material');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch project materials
+      queryClient.invalidateQueries({
+        queryKey: [...materialKeys.all, "project", variables.project_id]
+      });
+
+      // Invalidate warehouse materials (stock has changed)
+      queryClient.invalidateQueries({
+        queryKey: [...materialKeys.all, "warehouse"]
+      });
+
+      toast.success('Material assigned successfully');
+    },
+    onError: (error) => {
+      toast.error(`Failed to assign material: ${error.message}`);
+    },
+  });
+}
+
+export function useUpdateMaterialAssignment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateMaterialAssignmentData) => {
+      const { assignment_id, ...updateData } = data;
+      const response = await fetch(`/api/materials/assignments/${assignment_id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update material assignment');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate related queries
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === "materials" &&
+                 query.queryKey[1] === "project";
+        }
+      });
+
+      toast.success('Material assignment updated successfully');
+    },
+    onError: (error) => {
+      toast.error(`Failed to update material assignment: ${error.message}`);
+    },
+  });
+}
+
+export function useDeleteMaterialAssignment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const response = await fetch(`/api/materials/assignments/${assignmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete material assignment');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, assignmentId) => {
+      // Invalidate all project materials queries
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === "materials" &&
+                 query.queryKey[1] === "project";
+        }
+      });
+
+      // Invalidate warehouse materials (stock might have changed)
+      queryClient.invalidateQueries({
+        queryKey: [...materialKeys.all, "warehouse"]
+      });
+
+      toast.success('Material assignment deleted successfully');
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete material assignment: ${error.message}`);
+    },
+  });
+}

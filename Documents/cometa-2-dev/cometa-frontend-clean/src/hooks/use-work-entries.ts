@@ -1,14 +1,76 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  workEntriesApi,
-  type WorkEntry,
-  type WorkEntryFilters,
-  type CreateWorkEntryRequest,
-  type WorkStage,
-  type Photo,
-  type PaginatedResponse,
-} from "@/lib/api-client";
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+
+export interface WorkEntry {
+  id: string;
+  project_id: string;
+  cabinet_id?: string | null;
+  segment_id?: string | null;
+  cut_id?: string | null;
+  house_id?: string | null;
+  crew_id?: string | null;
+  user_id?: string | null;
+  date: string;
+  stage_code: string;
+  meters_done_m: number;
+  method?: string | null;
+  width_m?: number | null;
+  depth_m?: number | null;
+  cables_count?: number | null;
+  has_protection_pipe: boolean;
+  soil_type?: string | null;
+  notes?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  project_name?: string | null;
+  crew_name?: string | null;
+  worker_name?: string | null;
+  approver_name?: string | null;
+  cabinet_name?: string | null;
+  segment_name?: string | null;
+  cut_name?: string | null;
+  house_address?: string | null;
+}
+
+export interface WorkEntriesResponse {
+  items: WorkEntry[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface WorkEntryFilters {
+  project_id?: string;
+  crew_id?: string;
+  user_id?: string;
+  stage_code?: string;
+  approved?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface CreateWorkEntryData {
+  project_id: string;
+  cabinet_id?: string;
+  segment_id?: string;
+  cut_id?: string;
+  house_id?: string;
+  crew_id?: string;
+  user_id?: string;
+  date: string;
+  stage_code: string;
+  meters_done_m: number;
+  method?: string;
+  width_m?: number;
+  depth_m?: number;
+  cables_count?: number;
+  has_protection_pipe?: boolean;
+  soil_type?: string;
+  notes?: string;
+}
 
 // Query keys
 export const workEntryKeys = {
@@ -20,171 +82,182 @@ export const workEntryKeys = {
   stages: () => [...workEntryKeys.all, "stages"] as const,
 };
 
-// Hooks
-export function useWorkEntries(filters?: WorkEntryFilters) {
+// Fetch work entries with filters
+export function useWorkEntries(filters: WorkEntryFilters = {}) {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, value.toString());
+    }
+  });
+
   return useQuery({
-    queryKey: workEntryKeys.list(filters || {}),
-    queryFn: () => workEntriesApi.getWorkEntries(filters),
-    staleTime: 2 * 60 * 1000, // 2 minutes - work entries change more frequently
+    queryKey: workEntryKeys.list(filters),
+    queryFn: async (): Promise<WorkEntriesResponse> => {
+      const response = await fetch(`/api/work-entries?${searchParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch work entries');
+      }
+      return response.json();
+    },
   });
 }
 
+// Fetch single work entry
 export function useWorkEntry(id: string) {
   return useQuery({
     queryKey: workEntryKeys.detail(id),
-    queryFn: () => workEntriesApi.getWorkEntry(id),
+    queryFn: async (): Promise<WorkEntry> => {
+      const response = await fetch(`/api/work-entries/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch work entry');
+      }
+      return response.json();
+    },
     enabled: !!id,
-    staleTime: 2 * 60 * 1000,
   });
 }
 
-export function useWorkStages() {
-  return useQuery({
-    queryKey: workEntryKeys.stages(),
-    queryFn: () => workEntriesApi.getStages(),
-    staleTime: 30 * 60 * 1000, // 30 minutes - stages don't change often
-  });
-}
-
+// Create work entry
 export function useCreateWorkEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateWorkEntryRequest) => workEntriesApi.createWorkEntry(data),
-    onSuccess: (newWorkEntry) => {
-      // Invalidate work entries lists
-      queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
-
-      // Add to cache
-      queryClient.setQueryData(workEntryKeys.detail(newWorkEntry.id), newWorkEntry);
-
-      toast.success("Work entry created successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to create work entry: ${error.message}`);
-    },
-  });
-}
-
-export function useUpdateWorkEntry() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreateWorkEntryRequest> }) =>
-      workEntriesApi.updateWorkEntry(id, data),
-    onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: workEntryKeys.detail(id) });
-
-      const previousWorkEntry = queryClient.getQueryData(workEntryKeys.detail(id));
-
-      queryClient.setQueryData(workEntryKeys.detail(id), (old: WorkEntry | undefined) => {
-        if (!old) return old;
-        return { ...old, ...data };
+    mutationFn: async (data: CreateWorkEntryData) => {
+      const response = await fetch('/api/work-entries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
       });
 
-      return { previousWorkEntry };
-    },
-    onError: (error, { id }, context) => {
-      if (context?.previousWorkEntry) {
-        queryClient.setQueryData(workEntryKeys.detail(id), context.previousWorkEntry);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create work entry');
       }
-      toast.error(`Failed to update work entry: ${error.message}`);
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
-      toast.success("Work entry updated successfully");
+      toast.success('Work entry created successfully');
     },
-    onSettled: (data, error, { id }) => {
-      queryClient.invalidateQueries({ queryKey: workEntryKeys.detail(id) });
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 }
 
-export function useApproveWorkEntry() {
+// Update work entry
+export function useUpdateWorkEntry(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => workEntriesApi.approveWorkEntry(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: workEntryKeys.detail(id) });
-
-      const previousWorkEntry = queryClient.getQueryData(workEntryKeys.detail(id));
-
-      // Optimistically update approval status
-      queryClient.setQueryData(workEntryKeys.detail(id), (old: WorkEntry | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          approved_at: new Date().toISOString(),
-          // approved_by will be set by the server response
-        };
+    mutationFn: async (data: Partial<CreateWorkEntryData>) => {
+      const response = await fetch(`/api/work-entries/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
       });
 
-      return { previousWorkEntry };
-    },
-    onError: (error, id, context) => {
-      if (context?.previousWorkEntry) {
-        queryClient.setQueryData(workEntryKeys.detail(id), context.previousWorkEntry);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update work entry');
       }
-      toast.error(`Failed to approve work entry: ${error.message}`);
+
+      return response.json();
     },
-    onSuccess: (approvedWorkEntry) => {
-      // Update cache with server response
-      queryClient.setQueryData(workEntryKeys.detail(approvedWorkEntry.id), approvedWorkEntry);
-
-      // Invalidate lists to reflect approval
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
-
-      toast.success("Work entry approved successfully");
+      queryClient.invalidateQueries({ queryKey: workEntryKeys.detail(id) });
+      toast.success('Work entry updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 }
 
+// Delete work entry
 export function useDeleteWorkEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => workEntriesApi.deleteWorkEntry(id),
-    onSuccess: (_, deletedId) => {
-      queryClient.removeQueries({ queryKey: workEntryKeys.detail(deletedId) });
-      queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
-      toast.success("Work entry deleted successfully");
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/work-entries/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete work entry');
+      }
+
+      return response.json();
     },
-    onError: (error) => {
-      toast.error(`Failed to delete work entry: ${error.message}`);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
+      toast.success('Work entry deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 }
 
-export function useUploadWorkEntryPhotos() {
+// Approve work entry
+export function useApproveWorkEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workEntryId, files }: { workEntryId: string; files: File[] }) =>
-      workEntriesApi.uploadPhotos(workEntryId, files),
-    onSuccess: (photos, { workEntryId }) => {
-      // Update the work entry cache with new photos
-      queryClient.setQueryData(workEntryKeys.detail(workEntryId), (old: WorkEntry | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          photos: [...(old.photos || []), ...photos],
-        };
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/work-entries/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      // Invalidate work entries list to ensure consistency
-      queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to approve work entry');
+      }
 
-      toast.success(`${photos.length} photo(s) uploaded successfully`);
+      return response.json();
     },
-    onError: (error) => {
-      toast.error(`Failed to upload photos: ${error.message}`);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workEntryKeys.lists() });
+      toast.success('Work entry approved successfully');
     },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Fetch pending approvals
+export function usePendingApprovals() {
+  return useWorkEntries({
+    approved: 'false',
+    page: 1,
+    per_page: 50,
   });
 }
 
 // Specialized hooks for common use cases
-export function useMyWorkEntries(userId?: string) {
+export function useProjectWorkEntries(projectId?: string) {
+  return useWorkEntries({
+    project_id: projectId,
+    page: 1,
+    per_page: 20,
+  });
+}
+
+export function useUserWorkEntries(userId?: string) {
   return useWorkEntries({
     user_id: userId,
     page: 1,
@@ -192,18 +265,25 @@ export function useMyWorkEntries(userId?: string) {
   });
 }
 
-export function useProjectWorkEntries(projectId?: string) {
+export function useCrewWorkEntries(crewId?: string) {
   return useWorkEntries({
-    project_id: projectId,
+    crew_id: crewId,
     page: 1,
-    per_page: 50,
+    per_page: 20,
   });
 }
 
-export function usePendingApprovals(userId?: string) {
-  return useWorkEntries({
-    approved: false,
-    page: 1,
-    per_page: 20,
+// Fetch work stages/stage codes
+export function useWorkStages() {
+  return useQuery({
+    queryKey: workEntryKeys.stages(),
+    queryFn: async () => {
+      const response = await fetch('/api/work-stages');
+      if (!response.ok) {
+        throw new Error('Failed to fetch work stages');
+      }
+      return response.json();
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }

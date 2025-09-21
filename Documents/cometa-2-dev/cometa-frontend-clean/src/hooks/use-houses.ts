@@ -365,3 +365,76 @@ export function useTodaysAppointments() {
     per_page: 50,
   });
 }
+
+// Project Preparation specific hooks
+export interface ProjectHouse {
+  id: string;
+  project_id: string;
+  address: string;
+  house_number?: string;
+  apartment_count: number;
+  floor_count?: number;
+  connection_type: string;
+  method: string;
+  house_type?: string;
+  status: string;
+  planned_connection_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  coordinates_lat?: number;
+  coordinates_lng?: number;
+  notes?: string;
+}
+
+export interface HouseDocument {
+  id: string;
+  house_id: string;
+  doc_type: string;
+  filename: string;
+  file_path: string;
+  upload_date: string;
+  uploaded_by?: string;
+}
+
+export interface ProjectHousesResponse {
+  houses: ProjectHouse[];
+  summary: {
+    total_houses: number;
+    connected_count: number;
+    assigned_count: number;
+    total_apartments: number;
+  };
+}
+
+export interface CreateHouseData {
+  project_id: string;
+  address: string;
+  house_number?: string;
+  apartment_count: number;
+  floor_count: number;
+  connection_type: string;
+  method: string;
+  house_type: string;
+  planned_connection_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  coordinates_lat?: number;
+  coordinates_lng?: number;
+  notes?: string;
+}
+
+export interface UpdateHouseData {
+  house_id: string;
+  address: string;
+  house_number?: string;
+  connection_type: string;
+  method: string;
+  status: string;
+  planned_connection_date?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  notes?: string;
+}
+

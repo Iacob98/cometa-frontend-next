@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Edit, MapPin, Calendar, Users, TrendingUp, AlertTriangle, Building2, Phone, Globe } from "lucide-react";
+import { ArrowLeft, Edit, MapPin, Calendar, Users, TrendingUp, AlertTriangle, Building2, Phone, Globe, Settings, FileText, CheckCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress";
 
 import { useProject } from "@/hooks/use-projects";
 import { usePermissions } from "@/hooks/use-auth";
+import { useProjectPreparation } from "@/hooks/use-project-preparation";
+import ProjectPreparationTab from "@/components/project-preparation/project-preparation-tab";
 import type { ProjectStatus } from "@/types";
 
 export default function ProjectDetailsPage() {
@@ -20,6 +22,7 @@ export default function ProjectDetailsPage() {
 
   const projectId = params.id as string;
   const { data: project, isLoading, error } = useProject(projectId);
+  const { data: preparation } = useProjectPreparation(projectId);
 
   const getStatusBadgeVariant = (status: ProjectStatus) => {
     switch (status) {
@@ -210,6 +213,15 @@ export default function ProjectDetailsPage() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="preparation" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Preparation
+            {preparation && (
+              <Badge variant="outline" className="text-xs">
+                {preparation.preparation_progress}%
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -341,6 +353,10 @@ export default function ProjectDetailsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="preparation" className="space-y-6">
+          <ProjectPreparationTab projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="progress" className="space-y-6">

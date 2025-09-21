@@ -207,7 +207,11 @@ export default function ProjectsPage() {
               </TableHeader>
               <TableBody>
                 {projects.map((project) => (
-                  <TableRow key={project.id}>
+                  <TableRow
+                    key={project.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+                  >
                     <TableCell>
                       <div>
                         <div className="font-medium">{project.name}</div>
@@ -253,12 +257,12 @@ export default function ProjectsPage() {
                         <div
                           className="bg-primary h-2 rounded-full"
                           style={{
-                            width: `${Math.min(100, Math.random() * 80 + 10)}%`, // Mock progress
+                            width: `${Math.min(100, project.progress || 0)}%`,
                           }}
                         />
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">

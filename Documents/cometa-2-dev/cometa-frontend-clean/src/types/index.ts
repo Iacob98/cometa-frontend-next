@@ -1141,3 +1141,419 @@ export interface GeospatialFilters {
   page?: number;
   per_page?: number;
 }
+
+// Financial Tracking Types
+export type TransactionType = 'income' | 'expense' | 'transfer';
+export type TransactionCategory =
+  | 'material_cost'
+  | 'equipment_rental'
+  | 'labor_cost'
+  | 'vehicle_expense'
+  | 'fuel'
+  | 'maintenance'
+  | 'insurance'
+  | 'permit_fee'
+  | 'subcontractor'
+  | 'overtime'
+  | 'bonus'
+  | 'fine'
+  | 'utility'
+  | 'office_expense'
+  | 'travel'
+  | 'accommodation'
+  | 'meal'
+  | 'communication'
+  | 'software_license'
+  | 'training'
+  | 'safety_equipment'
+  | 'other';
+
+export type PaymentMethod = 'cash' | 'bank_transfer' | 'credit_card' | 'check' | 'invoice';
+export type InvoiceStatus = 'draft' | 'pending' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type BudgetStatus = 'planning' | 'approved' | 'active' | 'completed' | 'over_budget';
+
+export interface Transaction {
+  id: UUID;
+  project_id?: UUID;
+  type: TransactionType;
+  category: TransactionCategory;
+  amount: number;
+  currency: string;
+  description: string;
+  transaction_date: string;
+  payment_method: PaymentMethod;
+  reference_number?: string;
+  receipt_url?: string;
+  invoice_id?: UUID;
+  work_entry_id?: UUID;
+  equipment_id?: UUID;
+  material_allocation_id?: UUID;
+  crew_id?: UUID;
+  user_id?: UUID;
+  approved_by?: UUID;
+  approved_at?: string;
+  tags?: string[];
+  notes?: string;
+  created_by: UUID;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  project?: Project;
+  invoice?: Invoice;
+  work_entry?: WorkEntry;
+  crew?: Crew;
+  user?: User;
+  creator?: User;
+  approver?: User;
+}
+
+export interface Invoice {
+  id: UUID;
+  project_id?: UUID;
+  invoice_number: string;
+  customer_name: string;
+  customer_email?: string;
+  customer_address?: string;
+  issue_date: string;
+  due_date: string;
+  status: InvoiceStatus;
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  total_amount: number;
+  currency: string;
+  payment_terms?: string;
+  notes?: string;
+  sent_at?: string;
+  paid_at?: string;
+  created_by: UUID;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  project?: Project;
+  items?: InvoiceItem[];
+  transactions?: Transaction[];
+  creator?: User;
+}
+
+export interface InvoiceItem {
+  id: UUID;
+  invoice_id: UUID;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  work_entry_id?: UUID;
+  material_allocation_id?: UUID;
+
+  // Relations
+  work_entry?: WorkEntry;
+  material_allocation?: MaterialAllocation;
+}
+
+export interface Budget {
+  id: UUID;
+  project_id: UUID;
+  name: string;
+  total_budget: number;
+  currency: string;
+  start_date: string;
+  end_date: string;
+  status: BudgetStatus;
+  description?: string;
+  created_by: UUID;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  project: Project;
+  categories?: BudgetCategory[];
+  creator?: User;
+}
+
+export interface BudgetCategory {
+  id: UUID;
+  budget_id: UUID;
+  category: TransactionCategory;
+  allocated_amount: number;
+  spent_amount: number;
+  remaining_amount: number;
+  percentage_used: number;
+  description?: string;
+
+  // Relations
+  budget?: Budget;
+  transactions?: Transaction[];
+}
+
+export interface CostReport {
+  id: UUID;
+  project_id?: UUID;
+  report_type: 'project_summary' | 'category_breakdown' | 'time_period' | 'crew_costs' | 'equipment_costs';
+  name: string;
+  date_from: string;
+  date_to: string;
+  total_income: number;
+  total_expenses: number;
+  net_profit: number;
+  currency: string;
+  generated_by: UUID;
+  generated_at: string;
+
+  // Relations
+  project?: Project;
+  data?: CostReportData;
+  generator?: User;
+}
+
+export interface CostReportData {
+  summary: {
+    total_transactions: number;
+    income_count: number;
+    expense_count: number;
+    avg_transaction_amount: number;
+  };
+  by_category: Array<{
+    category: TransactionCategory;
+    total_amount: number;
+    transaction_count: number;
+    percentage: number;
+  }>;
+  by_project: Array<{
+    project_id: UUID;
+    project_name: string;
+    total_amount: number;
+    net_profit: number;
+  }>;
+  by_crew: Array<{
+    crew_id: UUID;
+    crew_name: string;
+    total_cost: number;
+    transaction_count: number;
+  }>;
+  monthly_trend: Array<{
+    month: string;
+    income: number;
+    expenses: number;
+    net: number;
+  }>;
+}
+
+export interface PaymentSchedule {
+  id: UUID;
+  project_id?: UUID;
+  invoice_id?: UUID;
+  payment_type: 'milestone' | 'recurring' | 'one_time';
+  amount: number;
+  currency: string;
+  due_date: string;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  description?: string;
+  milestone_percentage?: number;
+  recurrence_pattern?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  paid_at?: string;
+  created_by: UUID;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  project?: Project;
+  invoice?: Invoice;
+  creator?: User;
+}
+
+export interface ExpenseCategory {
+  id: UUID;
+  name: string;
+  description?: string;
+  code: TransactionCategory;
+  budget_limit?: number;
+  requires_approval: boolean;
+  approval_threshold?: number;
+  icon?: string;
+  color: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Financial API Request/Response Types
+export interface CreateTransactionRequest {
+  project_id?: UUID;
+  type: TransactionType;
+  category: TransactionCategory;
+  amount: number;
+  currency?: string;
+  description: string;
+  transaction_date: string;
+  payment_method: PaymentMethod;
+  reference_number?: string;
+  receipt_file?: File;
+  work_entry_id?: UUID;
+  equipment_id?: UUID;
+  material_allocation_id?: UUID;
+  crew_id?: UUID;
+  user_id?: UUID;
+  tags?: string[];
+  notes?: string;
+}
+
+export interface CreateInvoiceRequest {
+  project_id?: UUID;
+  customer_name: string;
+  customer_email?: string;
+  customer_address?: string;
+  due_date: string;
+  items: Array<{
+    description: string;
+    quantity: number;
+    unit_price: number;
+    work_entry_id?: UUID;
+    material_allocation_id?: UUID;
+  }>;
+  tax_rate?: number;
+  payment_terms?: string;
+  notes?: string;
+}
+
+export interface CreateBudgetRequest {
+  project_id: UUID;
+  name: string;
+  total_budget: number;
+  currency?: string;
+  start_date: string;
+  end_date: string;
+  description?: string;
+  categories: Array<{
+    category: TransactionCategory;
+    allocated_amount: number;
+    description?: string;
+  }>;
+}
+
+export interface FinancialFilters {
+  project_id?: UUID;
+  type?: TransactionType;
+  category?: TransactionCategory;
+  payment_method?: PaymentMethod;
+  date_from?: string;
+  date_to?: string;
+  amount_min?: number;
+  amount_max?: number;
+  currency?: string;
+  approved?: boolean;
+  has_receipt?: boolean;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface InvoiceFilters {
+  project_id?: UUID;
+  status?: InvoiceStatus;
+  customer_name?: string;
+  issue_date_from?: string;
+  issue_date_to?: string;
+  due_date_from?: string;
+  due_date_to?: string;
+  amount_min?: number;
+  amount_max?: number;
+  overdue?: boolean;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface BudgetFilters {
+  project_id?: UUID;
+  status?: BudgetStatus;
+  start_date_from?: string;
+  start_date_to?: string;
+  over_budget?: boolean;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface FinancialSummary {
+  total_income: number;
+  total_expenses: number;
+  net_profit: number;
+  pending_invoices: number;
+  overdue_invoices: number;
+  budget_utilization: number;
+  currency: string;
+  period: {
+    from: string;
+    to: string;
+  };
+  by_category: Array<{
+    category: TransactionCategory;
+    amount: number;
+    percentage: number;
+  }>;
+  by_project: Array<{
+    project_id: UUID;
+    project_name: string;
+    budget: number;
+    spent: number;
+    remaining: number;
+    utilization_percentage: number;
+  }>;
+}
+
+// Document Management Types
+export type DocumentStatus = 'active' | 'expired' | 'expiring_soon' | 'pending' | 'inactive';
+export type DocumentCategoryCode = 'WORK_PERMIT' | 'INSURANCE' | 'ID_DOCUMENT' | 'VISA' | 'MEDICAL' | 'SAFETY_TRAINING' | 'PASSPORT' | 'DRIVING_LICENSE';
+
+export interface DocumentCategory {
+  id: UUID;
+  name_de: string;
+  name_ru: string;
+  name_en: string;
+  code: DocumentCategoryCode;
+  required_for_work: boolean;
+  retention_period_months?: number;
+  icon?: string;
+  color: string;
+  created_at: string;
+}
+
+export interface WorkerDocument {
+  id: UUID;
+  user_id: UUID;
+  category_id: UUID;
+  document_number?: string;
+  issuing_authority?: string;
+  issue_date?: string; // ISO date string
+  expiry_date?: string; // ISO date string
+  valid_until?: string; // ISO date string
+  status: DocumentStatus;
+  file_url: string;
+  file_name: string;
+  file_size: number;
+  file_type: string;
+  notes?: string;
+  is_verified: boolean;
+  verified_by?: UUID;
+  verified_at?: string;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  category: DocumentCategory;
+  user?: User;
+}
+
+export interface DocumentsResponse {
+  documents: WorkerDocument[];
+  categories: DocumentCategory[];
+  stats: {
+    total: number;
+    active: number;
+    expired: number;
+    expiring_soon: number;
+  };
+}
