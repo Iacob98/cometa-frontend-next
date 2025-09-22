@@ -32,15 +32,15 @@ const createMaterialSchema = z.object({
 type CreateMaterialFormData = z.infer<typeof createMaterialSchema>;
 
 const materialUnits: { value: MaterialUnit; label: string }[] = [
-  { value: "piece", label: "Pieces (pcs)" },
-  { value: "meter", label: "Meters (m)" },
+  { value: "pcs", label: "Pieces (pcs)" },
+  { value: "m", label: "Meters (m)" },
+  { value: "m2", label: "Square meters (m²)" },
   { value: "kg", label: "Kilograms (kg)" },
-  { value: "ton", label: "Tons (t)" },
-  { value: "liter", label: "Liters (L)" },
+  { value: "t", label: "Tons (t)" },
+  { value: "l", label: "Liters (L)" },
   { value: "m3", label: "Cubic meters (m³)" },
-  { value: "box", label: "Boxes" },
-  { value: "pallet", label: "Pallets" },
   { value: "roll", label: "Rolls" },
+  { value: "other", label: "Other" },
 ];
 
 export default function NewMaterialPage() {

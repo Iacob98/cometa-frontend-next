@@ -228,6 +228,7 @@ export function usePermissions() {
     canManageWork: hasAnyRole(["admin", "pm", "foreman", "crew", "worker"]),
     canViewFinances: hasAnyRole(["admin", "pm", "foreman"]),
     canManageFinances: hasAnyRole(["admin", "pm"]),
+    canManageInventory: hasAnyRole(["admin", "pm", "foreman"]),
   };
 }
 

@@ -336,15 +336,15 @@ export interface MaterialOrderItem {
 }
 
 export type MaterialUnit =
-  | "piece"
-  | "meter"
+  | "m"
+  | "m2"
   | "kg"
-  | "ton"
-  | "liter"
+  | "t"
+  | "pcs"
+  | "roll"
   | "m3"
-  | "box"
-  | "pallet"
-  | "roll";
+  | "l"
+  | "other";
 
 export type MaterialOrderStatus =
   | "draft"
@@ -1556,4 +1556,241 @@ export interface DocumentsResponse {
     expired: number;
     expiring_soon: number;
   };
+}
+
+// Equipment & Vehicle Management Types
+export type EquipmentType = 'excavator' | 'trencher' | 'compactor' | 'generator' | 'pump' | 'vehicle' | 'tool' | 'safety' | 'measurement' | 'other';
+export type EquipmentStatus = 'available' | 'in_use' | 'maintenance' | 'out_of_service' | 'retired';
+export type VehicleType = 'truck' | 'van' | 'car' | 'trailer' | 'special';
+export type MaintenanceType = 'preventive' | 'corrective' | 'emergency' | 'inspection';
+export type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'overdue';
+
+export interface Equipment {
+  id: UUID;
+  name: string;
+  equipment_type: EquipmentType;
+  model?: string;
+  manufacturer?: string;
+  serial_number?: string;
+  purchase_date?: string;
+  purchase_cost?: number;
+  current_value?: number;
+  daily_rental_rate?: number;
+  hourly_rental_rate?: number;
+  status: EquipmentStatus;
+  location?: string;
+  notes?: string;
+  specifications?: Record<string, any>;
+  last_maintenance_date?: string;
+  next_maintenance_date?: string;
+  total_operating_hours?: number;
+  created_at: string;
+  updated_at: string;
+  assignments?: EquipmentAssignment[];
+  maintenance_records?: MaintenanceRecord[];
+}
+
+export interface Vehicle extends Equipment {
+  vehicle_type: VehicleType;
+  license_plate?: string;
+  vin?: string;
+  fuel_type?: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  fuel_capacity?: number;
+  mileage?: number;
+  insurance_expiry?: string;
+  registration_expiry?: string;
+  driver_license_required?: string;
+  expenses?: VehicleExpense[];
+}
+
+export interface EquipmentAssignment {
+  id: UUID;
+  equipment_id: UUID;
+  project_id?: UUID;
+  crew_id?: UUID;
+  user_id?: UUID;
+  assigned_by: UUID;
+  assigned_at: string;
+  expected_return_date?: string;
+  actual_return_date?: string;
+  status: 'active' | 'returned' | 'overdue' | 'lost_damaged';
+  condition_before?: string;
+  condition_after?: string;
+  notes?: string;
+  daily_rate?: number;
+  hourly_rate?: number;
+  total_cost?: number;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  equipment?: Equipment;
+  project?: Project;
+  crew?: Crew;
+  user?: User;
+  assigner?: User;
+}
+
+export interface MaintenanceRecord {
+  id: UUID;
+  equipment_id: UUID;
+  maintenance_type: MaintenanceType;
+  status: MaintenanceStatus;
+  scheduled_date: string;
+  completed_date?: string;
+  performed_by?: UUID;
+  description: string;
+  cost?: number;
+  parts_used?: string[];
+  hours_taken?: number;
+  next_maintenance_date?: string;
+  warranty_until?: string;
+  maintenance_notes?: string;
+  before_photos?: string[];
+  after_photos?: string[];
+  created_by: UUID;
+  created_at: string;
+  updated_at: string;
+
+  // Relations
+  equipment?: Equipment;
+  performer?: User;
+  creator?: User;
+}
+
+export interface VehicleExpense {
+  id: UUID;
+  vehicle_id: UUID;
+  expense_type: 'fuel' | 'maintenance' | 'insurance' | 'registration' | 'repair' | 'fine' | 'toll' | 'parking' | 'other';
+  amount: number;
+  currency: string;
+  expense_date: string;
+  odometer_reading?: number;
+  description: string;
+  receipt_url?: string;
+  vendor?: string;
+  created_by: UUID;
+  created_at: string;
+
+  // Relations
+  vehicle?: Vehicle;
+  creator?: User;
+}
+
+export interface EquipmentUsage {
+  id: UUID;
+  equipment_id: UUID;
+  project_id?: UUID;
+  user_id: UUID;
+  start_time: string;
+  end_time?: string;
+  hours_used: number;
+  fuel_consumed?: number;
+  mileage_start?: number;
+  mileage_end?: number;
+  location?: string;
+  purpose: string;
+  condition_notes?: string;
+  issues_reported?: string;
+  created_at: string;
+
+  // Relations
+  equipment?: Equipment;
+  project?: Project;
+  user?: User;
+}
+
+// Equipment API Request/Response Types
+export interface CreateEquipmentRequest {
+  name: string;
+  equipment_type: EquipmentType;
+  model?: string;
+  manufacturer?: string;
+  serial_number?: string;
+  purchase_date?: string;
+  purchase_cost?: number;
+  daily_rental_rate?: number;
+  hourly_rental_rate?: number;
+  status?: EquipmentStatus;
+  location?: string;
+  notes?: string;
+  specifications?: Record<string, any>;
+  vehicle_type?: VehicleType;
+  license_plate?: string;
+  vin?: string;
+  fuel_type?: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  fuel_capacity?: number;
+  insurance_expiry?: string;
+  registration_expiry?: string;
+  driver_license_required?: string;
+}
+
+export interface UpdateEquipmentRequest extends Partial<CreateEquipmentRequest> {
+  current_value?: number;
+  total_operating_hours?: number;
+  last_maintenance_date?: string;
+  next_maintenance_date?: string;
+  mileage?: number;
+}
+
+export interface CreateEquipmentAssignmentRequest {
+  equipment_id: UUID;
+  project_id?: UUID;
+  crew_id?: UUID;
+  user_id?: UUID;
+  expected_return_date?: string;
+  condition_before?: string;
+  notes?: string;
+  daily_rate?: number;
+  hourly_rate?: number;
+}
+
+export interface CreateMaintenanceRecordRequest {
+  equipment_id: UUID;
+  maintenance_type: MaintenanceType;
+  scheduled_date: string;
+  performed_by?: UUID;
+  description: string;
+  cost?: number;
+  parts_used?: string[];
+  hours_taken?: number;
+  next_maintenance_date?: string;
+  warranty_until?: string;
+  maintenance_notes?: string;
+}
+
+export interface EquipmentFilters {
+  equipment_type?: EquipmentType;
+  status?: EquipmentStatus;
+  location?: string;
+  manufacturer?: string;
+  available_only?: boolean;
+  maintenance_due?: boolean;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface AssignmentFilters {
+  equipment_id?: UUID;
+  project_id?: UUID;
+  crew_id?: UUID;
+  user_id?: UUID;
+  status?: 'active' | 'returned' | 'overdue' | 'lost_damaged';
+  assigned_from?: string;
+  assigned_to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface MaintenanceFilters {
+  equipment_id?: UUID;
+  maintenance_type?: MaintenanceType;
+  status?: MaintenanceStatus;
+  scheduled_from?: string;
+  scheduled_to?: string;
+  performed_by?: UUID;
+  overdue?: boolean;
+  page?: number;
+  per_page?: number;
 }

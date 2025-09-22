@@ -5,6 +5,9 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 export async function GET(request: NextRequest) {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 5000);
+
   try {
     const { searchParams } = new URL(request.url);
     const project_id = searchParams.get('project_id');
@@ -22,104 +25,146 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const per_page = parseInt(searchParams.get('per_page') || '50');
 
-    // Mock transactions data - replace with real database queries when tables exist
-    const mockTransactions = [
-      {
-        id: 'trans_001',
-        project_id: '6c31db6b-9902-40a4-b3b3-3c0c9e672b03',
-        type: 'expense',
-        category: 'materials',
-        amount: 2500.00,
-        currency: 'EUR',
-        description: 'Fiber optic cables purchase',
-        transaction_date: '2024-09-15',
-        payment_method: 'bank_transfer',
-        reference_number: 'REF-2024-001',
-        receipt_url: null,
-        invoice_id: null,
-        work_entry_id: null,
-        equipment_id: null,
-        material_allocation_id: null,
-        crew_id: null,
-        user_id: null,
-        approved_by: null,
-        approved_at: null,
-        tags: ['materials', 'urgent'],
-        notes: 'Emergency purchase for project delay',
-        created_by: '6f3da2a8-7cd6-4f9e-84fb-9669a41e85bb',
-        created_at: '2024-09-15T10:30:00Z',
-        updated_at: '2024-09-15T10:30:00Z',
-        project_name: 'Test Project',
-        crew_name: null,
-        user_name: null,
-        creator_name: 'Admin User',
-        approver_name: null
-      },
-      {
-        id: 'trans_002',
-        project_id: '6c31db6b-9902-40a4-b3b3-3c0c9e672b03',
-        type: 'expense',
-        category: 'equipment',
-        amount: 1200.00,
-        currency: 'EUR',
-        description: 'Equipment rental - excavator',
-        transaction_date: '2024-09-16',
-        payment_method: 'credit_card',
-        reference_number: 'REF-2024-002',
-        receipt_url: null,
-        invoice_id: null,
-        work_entry_id: null,
-        equipment_id: null,
-        material_allocation_id: null,
-        crew_id: null,
-        user_id: null,
-        approved_by: null,
-        approved_at: null,
-        tags: ['equipment', 'rental'],
-        notes: 'Weekly rental for excavation work',
-        created_by: '6f3da2a8-7cd6-4f9e-84fb-9669a41e85bb',
-        created_at: '2024-09-16T14:15:00Z',
-        updated_at: '2024-09-16T14:15:00Z',
-        project_name: 'Test Project',
-        crew_name: null,
-        user_name: null,
-        creator_name: 'Admin User',
-        approver_name: null
-      },
-      {
-        id: 'trans_003',
-        project_id: '6c31db6b-9902-40a4-b3b3-3c0c9e672b03',
-        type: 'income',
-        category: 'payment',
-        amount: 5000.00,
-        currency: 'EUR',
-        description: 'Project milestone payment',
-        transaction_date: '2024-09-18',
-        payment_method: 'bank_transfer',
-        reference_number: 'PAY-2024-001',
-        receipt_url: null,
-        invoice_id: null,
-        work_entry_id: null,
-        equipment_id: null,
-        material_allocation_id: null,
-        crew_id: null,
-        user_id: null,
-        approved_by: '6f3da2a8-7cd6-4f9e-84fb-9669a41e85bb',
-        approved_at: '2024-09-18T16:00:00Z',
-        tags: ['payment', 'milestone'],
-        notes: 'First milestone completion payment',
-        created_by: '6f3da2a8-7cd6-4f9e-84fb-9669a41e85bb',
-        created_at: '2024-09-18T16:00:00Z',
-        updated_at: '2024-09-18T16:00:00Z',
-        project_name: 'Test Project',
-        crew_name: null,
-        user_name: null,
-        creator_name: 'Admin User',
-        approver_name: 'Admin User'
-      }
-    ];
+    // Query real transactions from database
+    let whereConditions = [];
+    let whereClause = '';
 
-    let filteredTransactions = [...mockTransactions];
+    if (project_id) {
+      whereConditions.push(`c.project_id = '${project_id}'`);
+    }
+    if (type && type === 'expense') {
+      // costs table only contains expenses, so we don't filter by type
+    }
+    if (category) {
+      whereConditions.push(`c.cost_type = '${category}'`);
+    }
+    if (currency && currency !== 'EUR') {
+      // costs table only contains EUR amounts, so we don't filter if EUR is requested
+    }
+    if (date_from) {
+      whereConditions.push(`c.date >= '${date_from}'`);
+    }
+    if (date_to) {
+      whereConditions.push(`c.date <= '${date_to}'`);
+    }
+    if (amount_min) {
+      whereConditions.push(`c.amount_eur >= ${amount_min}`);
+    }
+    if (amount_max) {
+      whereConditions.push(`c.amount_eur <= ${amount_max}`);
+    }
+
+    if (whereConditions.length > 0) {
+      whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    // Query transactions from costs table (financial transactions)
+    const sqlQuery = `
+      SELECT
+        c.id,
+        c.project_id,
+        'expense' as type,
+        c.cost_type as category,
+        c.amount_eur as amount,
+        'EUR' as currency,
+        c.description,
+        c.date as transaction_date,
+        'bank_transfer' as payment_method,
+        null as reference_number,
+        null as receipt_url,
+        null as invoice_id,
+        null as work_entry_id,
+        null as equipment_id,
+        null as material_allocation_id,
+        null as crew_id,
+        null as user_id,
+        null as approved_by,
+        null as approved_at,
+        null as notes,
+        c.date as created_at,
+        c.date as updated_at,
+        p.name as project_name,
+        'System' as creator_name,
+        null as approver_name
+      FROM costs c
+      LEFT JOIN projects p ON c.project_id = p.id
+      ${whereClause}
+    `;
+
+    // Search filter if provided
+    let searchCondition = '';
+    if (search) {
+      searchCondition = ` AND (c.description ILIKE '%${search}%')`;
+    }
+
+    const finalQuery = sqlQuery + searchCondition + ` ORDER BY c.date DESC LIMIT ${per_page} OFFSET ${(page - 1) * per_page}`;
+
+    // Count query
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM costs c
+      LEFT JOIN projects p ON c.project_id = p.id
+      ${whereClause}
+      ${searchCondition}
+    `;
+
+    let filteredTransactions = [];
+
+    try {
+      // Simplified query with timeout protection
+      const command = `docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${finalQuery}"`;
+
+      const queryResult = await Promise.race([
+        execAsync(command),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 2000))
+      ]);
+
+      const { stdout } = queryResult;
+
+      // Only process if we have valid stdout
+      if (stdout) {
+        const lines = stdout.trim().split('\n').filter(line => line.trim());
+        for (const line of lines) {
+          const parts = line.split('|').map(part => part.trim());
+          if (parts.length >= 20) {
+            filteredTransactions.push({
+              id: parts[0],
+              project_id: parts[1],
+              type: parts[2],
+              category: parts[3],
+              amount: parseFloat(parts[4]) || 0,
+              currency: parts[5] || 'EUR',
+              description: parts[6] || '',
+              transaction_date: parts[7] || '',
+              payment_method: parts[8] || 'unknown',
+              reference_number: parts[9] || '',
+              receipt_url: parts[10] || null,
+              invoice_id: parts[11] || null,
+              work_entry_id: parts[12] || null,
+              equipment_id: parts[13] || null,
+              material_allocation_id: parts[14] || null,
+              crew_id: parts[15] || null,
+              user_id: parts[16] || null,
+              approved_by: parts[17] || null,
+              approved_at: parts[18] || null,
+              tags: [], // Would need separate tags table
+              notes: parts[19] || '',
+              created_by: parts[20] || '',
+              created_at: parts[21] || '',
+              updated_at: parts[22] || '',
+              project_name: parts[23] || '',
+              creator_name: parts[24] || '',
+              approver_name: parts[25] || ''
+            });
+          }
+        }
+      }
+
+    } catch (dbError) {
+      console.error('Database query failed:', dbError);
+      // No fallback data - return empty array
+      filteredTransactions = [];
+    }
 
     // Apply basic filtering (in real implementation, this would be done in SQL)
     if (project_id) {
@@ -151,25 +196,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Apply pagination
-    const total = filteredTransactions.length;
-    const total_pages = Math.ceil(total / per_page);
-    const offset = (page - 1) * per_page;
-    const transactions = filteredTransactions.slice(offset, offset + per_page);
-
+    // Simplified response without complex pagination
+    clearTimeout(timeoutId);
     return NextResponse.json({
-      transactions,
-      total,
-      page,
-      per_page,
-      total_pages,
+      transactions: filteredTransactions,
+      total: filteredTransactions.length,
+      page: 1,
+      per_page: 50,
+      total_pages: 1,
     });
   } catch (error) {
     console.error('Transactions API error:', error);
+    clearTimeout(timeoutId);
     return NextResponse.json(
       { error: 'Failed to fetch transactions' },
       { status: 500 }
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

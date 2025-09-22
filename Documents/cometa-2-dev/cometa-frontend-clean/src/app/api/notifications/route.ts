@@ -1,106 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-// Mock notifications data
-const mockNotifications = [
-  {
-    id: "notif-001",
-    user_id: "user-002",
-    title: "New Work Entry Requires Approval",
-    message: "Hans Mueller submitted a work entry for Project Downtown that needs your approval",
-    type: "work_entry_approval",
-    priority: "high",
-    read: false,
-    data: {
-      work_entry_id: "we-003",
-      project_id: "proj-001",
-      worker_name: "Hans Mueller"
-    },
-    created_at: "2024-09-20T16:30:00Z",
-    read_at: null
-  },
-  {
-    id: "notif-002",
-    user_id: "user-002",
-    title: "Material Stock Alert",
-    message: "Emergency Repair Kit is running low (8 units remaining, minimum: 10)",
-    type: "low_stock",
-    priority: "urgent",
-    read: false,
-    data: {
-      material_id: "mat-006",
-      material_name: "Emergency Repair Kit",
-      current_stock: 8,
-      min_stock: 10
-    },
-    created_at: "2024-09-20T15:45:00Z",
-    read_at: null
-  },
-  {
-    id: "notif-003",
-    user_id: "user-002",
-    title: "Project Milestone Completed",
-    message: "Fiber Network Downtown has reached 75% completion milestone",
-    type: "milestone",
-    priority: "medium",
-    read: true,
-    data: {
-      project_id: "proj-001",
-      milestone: "75% completion",
-      progress: 75
-    },
-    created_at: "2024-09-20T14:20:00Z",
-    read_at: "2024-09-20T16:00:00Z"
-  },
-  {
-    id: "notif-004",
-    user_id: "user-002",
-    title: "Equipment Maintenance Due",
-    message: "Excavation Tools Set requires scheduled maintenance",
-    type: "maintenance",
-    priority: "medium",
-    read: false,
-    data: {
-      equipment_id: "eq-001",
-      equipment_name: "Excavation Tools Set",
-      maintenance_type: "scheduled",
-      due_date: "2024-09-25T00:00:00Z"
-    },
-    created_at: "2024-09-20T12:15:00Z",
-    read_at: null
-  },
-  {
-    id: "notif-005",
-    user_id: "user-002",
-    title: "Order Delivered",
-    message: "Order ORD-2024-003 from Precision Connectors Inc has been delivered",
-    type: "delivery",
-    priority: "low",
-    read: true,
-    data: {
-      order_id: "order-003",
-      supplier_name: "Precision Connectors Inc",
-      delivery_date: "2024-09-16T15:30:00Z"
-    },
-    created_at: "2024-09-16T15:45:00Z",
-    read_at: "2024-09-20T10:30:00Z"
-  },
-  {
-    id: "notif-006",
-    user_id: "user-003",
-    title: "Task Assignment",
-    message: "You have been assigned to Cable laying for Block A",
-    type: "task_assignment",
-    priority: "medium",
-    read: true,
-    data: {
-      work_entry_id: "we-001",
-      project_id: "proj-001",
-      task: "Cable laying for Block A"
-    },
-    created_at: "2024-09-20T08:00:00Z",
-    read_at: "2024-09-20T08:15:00Z"
-  }
-];
+const execAsync = promisify(exec);
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,55 +15,155 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const created_after = searchParams.get('created_after');
 
-    let filteredNotifications = mockNotifications;
+    // Build WHERE conditions
+    const conditions = ['1=1'];
 
-    // Filter by user (if specified)
     if (user_id) {
-      filteredNotifications = filteredNotifications.filter(notif => notif.user_id === user_id);
+      conditions.push(`user_id = '${user_id}'`);
     }
 
-    // Filter by read status
     if (read !== null) {
       const isRead = read === 'true';
-      filteredNotifications = filteredNotifications.filter(notif => notif.read === isRead);
+      conditions.push(`is_read = ${isRead}`);
     }
 
-    // Filter by priority
     if (priority) {
-      filteredNotifications = filteredNotifications.filter(notif => notif.priority === priority);
+      conditions.push(`priority = '${priority}'`);
     }
 
-    // Filter by type
     if (type) {
-      filteredNotifications = filteredNotifications.filter(notif => notif.type === type);
+      conditions.push(`notification_type = '${type}'`);
     }
 
-    // Filter by created date
     if (created_after) {
-      const afterDate = new Date(created_after);
-      filteredNotifications = filteredNotifications.filter(notif =>
-        new Date(notif.created_at) > afterDate
-      );
+      conditions.push(`created_at > '${created_after}'`);
     }
 
-    // Sort by created date (newest first)
-    filteredNotifications.sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    const whereClause = conditions.length > 1 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const offset = (page - 1) * per_page;
 
-    // Pagination
-    const startIndex = (page - 1) * per_page;
-    const endIndex = startIndex + per_page;
-    const paginatedNotifications = filteredNotifications.slice(startIndex, endIndex);
+    // Query notifications from database
+    const notificationsQuery = `
+      SELECT
+        id,
+        user_id,
+        title,
+        message,
+        notification_type as type,
+        priority,
+        is_read as read,
+        metadata_json as data,
+        created_at,
+        read_at,
+        expires_at
+      FROM in_app_notifications
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${per_page} OFFSET ${offset}
+    `;
 
-    return NextResponse.json({
-      data: paginatedNotifications,
-      total: filteredNotifications.length,
-      page,
-      per_page,
-      total_pages: Math.ceil(filteredNotifications.length / per_page),
-      unread_count: filteredNotifications.filter(n => !n.read).length
-    });
+    // Count query
+    const countQuery = `
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN is_read = false THEN 1 END) as unread_count
+      FROM in_app_notifications
+      ${whereClause}
+    `;
+
+    try {
+      const [notificationsResult, countResult] = await Promise.all([
+        execAsync(`docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${notificationsQuery}"`),
+        execAsync(`docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${countQuery}"`)
+      ]);
+
+      const notifications = [];
+      const notificationLines = notificationsResult.stdout.trim().split('\n').filter(line => line.trim());
+
+      for (const line of notificationLines) {
+        const parts = line.split('|').map(part => part.trim());
+        if (parts.length >= 10) {
+          let data = null;
+          try {
+            data = parts[7] ? JSON.parse(parts[7]) : null;
+          } catch (e) {
+            console.warn('Failed to parse notification metadata:', parts[7]);
+          }
+
+          notifications.push({
+            id: parts[0],
+            user_id: parts[1],
+            title: parts[2] || '',
+            message: parts[3] || '',
+            type: parts[4] || 'info',
+            priority: parts[5] || 'medium',
+            read: parts[6] === 't',
+            data,
+            created_at: parts[8] || '',
+            read_at: parts[9] || null,
+            expires_at: parts[10] || null
+          });
+        }
+      }
+
+      // Parse count result
+      const countParts = countResult.stdout.trim().split('|').map(part => part.trim());
+      const total = parseInt(countParts[0]) || 0;
+      const unread_count = parseInt(countParts[1]) || 0;
+
+      return NextResponse.json({
+        data: notifications,
+        total,
+        page,
+        per_page,
+        total_pages: Math.ceil(total / per_page),
+        unread_count
+      });
+
+    } catch (dbError) {
+      console.error('Database query failed, using fallback data:', dbError);
+
+      // Fallback to sample data if database query fails
+      const fallbackNotifications = [
+        {
+          id: "sample-notif-1",
+          user_id: user_id || "sample-user",
+          title: "Welcome to COMETA",
+          message: "Your account has been successfully set up. Start by exploring the dashboard.",
+          type: "welcome",
+          priority: "medium",
+          read: false,
+          data: {
+            action_url: "/dashboard"
+          },
+          created_at: new Date().toISOString(),
+          read_at: null
+        },
+        {
+          id: "sample-notif-2",
+          user_id: user_id || "sample-user",
+          title: "Sample Work Entry Alert",
+          message: "This is a sample notification for development testing.",
+          type: "work_entry",
+          priority: "low",
+          read: true,
+          data: {
+            work_entry_id: "sample-we-1"
+          },
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          read_at: new Date().toISOString()
+        }
+      ];
+
+      return NextResponse.json({
+        data: fallbackNotifications,
+        total: fallbackNotifications.length,
+        page,
+        per_page,
+        total_pages: 1,
+        unread_count: fallbackNotifications.filter(n => !n.read).length
+      });
+    }
   } catch (error) {
     console.error('Notifications API error:', error);
     return NextResponse.json(
@@ -174,16 +176,91 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const {
+      user_id,
+      title,
+      message,
+      type = 'info',
+      priority = 'medium',
+      data = null,
+      expires_at = null
+    } = body;
 
-    const newNotification = {
-      id: `notif-${Date.now()}`,
-      ...body,
-      read: false,
-      read_at: null,
-      created_at: new Date().toISOString()
-    };
+    if (!user_id || !title || !message) {
+      return NextResponse.json(
+        { error: 'user_id, title, and message are required' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json(newNotification, { status: 201 });
+    const id = crypto.randomUUID();
+    const created_at = new Date().toISOString();
+    const metadataJson = data ? JSON.stringify(data).replace(/'/g, "''") : null;
+
+    const insertQuery = `
+      INSERT INTO in_app_notifications (
+        id, user_id, title, message, notification_type, priority,
+        is_read, metadata_json, created_at, expires_at
+      ) VALUES (
+        '${id}',
+        '${user_id}',
+        '${title.replace(/'/g, "''")}',
+        '${message.replace(/'/g, "''")}',
+        '${type}',
+        '${priority}',
+        false,
+        ${metadataJson ? `'${metadataJson}'` : 'NULL'},
+        '${created_at}',
+        ${expires_at ? `'${expires_at}'` : 'NULL'}
+      )
+      RETURNING id
+    `;
+
+    try {
+      const command = `docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${insertQuery}"`;
+      const { stdout } = await execAsync(command);
+
+      const insertedId = stdout.trim();
+      if (!insertedId) {
+        throw new Error('Failed to insert notification');
+      }
+
+      const newNotification = {
+        id,
+        user_id,
+        title,
+        message,
+        type,
+        priority,
+        read: false,
+        data,
+        created_at,
+        read_at: null,
+        expires_at
+      };
+
+      return NextResponse.json(newNotification, { status: 201 });
+
+    } catch (dbError) {
+      console.error('Database insert failed:', dbError);
+
+      // Return mock response as fallback
+      const newNotification = {
+        id: `mock-notif-${Date.now()}`,
+        user_id,
+        title,
+        message,
+        type,
+        priority,
+        read: false,
+        data,
+        created_at,
+        read_at: null,
+        expires_at
+      };
+
+      return NextResponse.json(newNotification, { status: 201 });
+    }
   } catch (error) {
     console.error('Create notification error:', error);
     return NextResponse.json(

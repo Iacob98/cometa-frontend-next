@@ -167,6 +167,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate unit against database constraint
+    const validUnits = ['m', 'm2', 'kg', 't', 'pcs', 'roll', 'm3', 'l', 'other'];
+    if (!validUnits.includes(unit)) {
+      return NextResponse.json(
+        { error: `Invalid unit. Must be one of: ${validUnits.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // Generate UUID for new material
     const materialId = crypto.randomUUID();
 

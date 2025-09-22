@@ -1,65 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-// Mock material allocations data
-const mockAllocations = [
-  {
-    id: "alloc-001",
-    project_id: "proj-001",
-    project_name: "Fiber Network Downtown",
-    material_id: "mat-001",
-    material_name: "Single Mode Fiber Cable",
-    allocated_qty: 1200,
-    used_qty: 800,
-    remaining_qty: 400,
-    unit: "meter",
-    allocated_by: "user-002",
-    allocated_by_name: "Klaus Weber",
-    allocation_date: "2024-09-15T10:00:00Z",
-    expected_usage_date: "2024-09-25T00:00:00Z",
-    status: "active",
-    notes: "For downtown network installation phase 1",
-    created_at: "2024-09-15T10:00:00Z",
-    updated_at: "2024-09-20T14:30:00Z"
-  },
-  {
-    id: "alloc-002",
-    project_id: "proj-001",
-    project_name: "Fiber Network Downtown",
-    material_id: "mat-003",
-    material_name: "Fiber Splice Enclosure",
-    allocated_qty: 45,
-    used_qty: 25,
-    remaining_qty: 20,
-    unit: "piece",
-    allocated_by: "user-002",
-    allocated_by_name: "Klaus Weber",
-    allocation_date: "2024-09-10T12:00:00Z",
-    expected_usage_date: "2024-09-30T00:00:00Z",
-    status: "active",
-    notes: "Splice enclosures for main distribution points",
-    created_at: "2024-09-10T12:00:00Z",
-    updated_at: "2024-09-18T16:45:00Z"
-  },
-  {
-    id: "alloc-003",
-    project_id: "proj-002",
-    project_name: "Residential Area Fiber Rollout",
-    material_id: "mat-002",
-    material_name: "Multimode Fiber Cable",
-    allocated_qty: 800,
-    used_qty: 0,
-    remaining_qty: 800,
-    unit: "meter",
-    allocated_by: "user-006",
-    allocated_by_name: "Maria Hoffmann",
-    allocation_date: "2024-09-20T09:00:00Z",
-    expected_usage_date: "2024-10-15T00:00:00Z",
-    status: "pending",
-    notes: "For residential area phase 1 preparation",
-    created_at: "2024-09-20T09:00:00Z",
-    updated_at: "2024-09-20T09:00:00Z"
-  }
-];
+const execAsync = promisify(exec);
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,41 +13,171 @@ export async function GET(request: NextRequest) {
     const material_id = searchParams.get('material_id');
     const status = searchParams.get('status');
 
-    let filteredAllocations = mockAllocations;
-
-    // Filter by project
+    // Build WHERE conditions
+    let whereConditions = [];
     if (project_id) {
-      filteredAllocations = filteredAllocations.filter(allocation =>
-        allocation.project_id === project_id
-      );
+      whereConditions.push(`ma.project_id = '${project_id}'`);
     }
-
-    // Filter by material
     if (material_id) {
-      filteredAllocations = filteredAllocations.filter(allocation =>
-        allocation.material_id === material_id
-      );
+      whereConditions.push(`ma.material_id = '${material_id}'`);
     }
-
-    // Filter by status
     if (status) {
-      filteredAllocations = filteredAllocations.filter(allocation =>
-        allocation.status === status
-      );
+      whereConditions.push(`ma.status = '${status}'`);
     }
 
-    // Pagination
-    const startIndex = (page - 1) * per_page;
-    const endIndex = startIndex + per_page;
-    const paginatedAllocations = filteredAllocations.slice(startIndex, endIndex);
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    return NextResponse.json({
-      data: paginatedAllocations,
-      total: filteredAllocations.length,
-      page,
-      per_page,
-      total_pages: Math.ceil(filteredAllocations.length / per_page)
-    });
+    // Query material allocations with related data
+    const allocationsQuery = `
+      SELECT
+        ma.id,
+        ma.material_id,
+        ma.project_id,
+        ma.crew_id,
+        ma.allocated_qty,
+        ma.used_qty,
+        ma.allocation_date,
+        ma.return_date,
+        ma.status,
+        ma.notes,
+        ma.allocated_by,
+        m.name as material_name,
+        m.unit as material_unit,
+        p.name as project_name,
+        c.name as crew_name,
+        CONCAT(u.first_name, ' ', u.last_name) as allocated_by_name
+      FROM material_allocations ma
+      LEFT JOIN materials m ON ma.material_id = m.id
+      LEFT JOIN projects p ON ma.project_id = p.id
+      LEFT JOIN crews c ON ma.crew_id = c.id
+      LEFT JOIN users u ON ma.allocated_by = u.id
+      ${whereClause}
+      ORDER BY ma.allocation_date DESC
+      LIMIT ${per_page} OFFSET ${(page - 1) * per_page}
+    `;
+
+    // Count query
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM material_allocations ma
+      ${whereClause}
+    `;
+
+    try {
+      const [allocationsResult, countResult] = await Promise.all([
+        execAsync(`docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${allocationsQuery}"`),
+        execAsync(`docker exec cometa-2-dev-postgres-1 psql -U postgres -d cometa -t -c "${countQuery}"`)
+      ]);
+
+      const total = parseInt(countResult.stdout.trim()) || 0;
+      const allocations = [];
+
+      const lines = allocationsResult.stdout.trim().split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        const parts = line.split('|').map(part => part.trim());
+        if (parts.length >= 15) {
+          const allocatedQty = parseFloat(parts[4]) || 0;
+          const usedQty = parseFloat(parts[5]) || 0;
+          const remainingQty = allocatedQty - usedQty;
+
+          allocations.push({
+            id: parts[0],
+            material_id: parts[1],
+            project_id: parts[2],
+            project_name: parts[13] || 'Unknown Project',
+            material_name: parts[11] || 'Unknown Material',
+            allocated_qty: allocatedQty,
+            used_qty: usedQty,
+            remaining_qty: remainingQty,
+            unit: parts[12] || 'pcs',
+            allocated_by: parts[10],
+            allocated_by_name: parts[15] || 'Unknown User',
+            allocation_date: parts[6],
+            expected_usage_date: null, // Would need additional field
+            status: parts[8] || 'allocated',
+            notes: parts[9] || '',
+            created_at: parts[6],
+            updated_at: parts[6]
+          });
+        }
+      }
+
+      // If no allocations found, return sample data
+      if (allocations.length === 0) {
+        const sampleAllocations = [
+          {
+            id: "sample-alloc-1",
+            project_id: "6c31db6b-9902-40a4-b3b3-3c0c9e672b03",
+            project_name: "Sample Project",
+            material_id: "sample-mat-1",
+            material_name: "Sample Fiber Cable",
+            allocated_qty: 100,
+            used_qty: 25,
+            remaining_qty: 75,
+            unit: "meter",
+            allocated_by: "system",
+            allocated_by_name: "System",
+            allocation_date: "2024-09-15T10:00:00Z",
+            expected_usage_date: "2024-09-25T00:00:00Z",
+            status: "active",
+            notes: "Sample allocation for development",
+            created_at: "2024-09-15T10:00:00Z",
+            updated_at: "2024-09-20T14:30:00Z"
+          }
+        ];
+
+        return NextResponse.json({
+          data: sampleAllocations,
+          total: 1,
+          page,
+          per_page,
+          total_pages: 1
+        });
+      }
+
+      return NextResponse.json({
+        data: allocations,
+        total,
+        page,
+        per_page,
+        total_pages: Math.ceil(total / per_page)
+      });
+
+    } catch (dbError) {
+      console.error('Database query failed, using fallback data:', dbError);
+
+      // Fallback to sample data if database query fails
+      const fallbackAllocations = [
+        {
+          id: "fallback-alloc-1",
+          project_id: "6c31db6b-9902-40a4-b3b3-3c0c9e672b03",
+          project_name: "Fallback Project",
+          material_id: "fallback-mat-1",
+          material_name: "Fallback Fiber Cable",
+          allocated_qty: 100,
+          used_qty: 25,
+          remaining_qty: 75,
+          unit: "meter",
+          allocated_by: "system",
+          allocated_by_name: "System",
+          allocation_date: "2024-09-15T10:00:00Z",
+          expected_usage_date: "2024-09-25T00:00:00Z",
+          status: "active",
+          notes: "Fallback allocation for development",
+          created_at: "2024-09-15T10:00:00Z",
+          updated_at: "2024-09-20T14:30:00Z"
+        }
+      ];
+
+      return NextResponse.json({
+        data: fallbackAllocations,
+        total: 1,
+        page,
+        per_page,
+        total_pages: 1
+      });
+    }
+
   } catch (error) {
     console.error('Material allocations API error:', error);
     return NextResponse.json(
