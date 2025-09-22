@@ -51,9 +51,12 @@ export default function ActivitiesPage() {
   });
 
   const handleFilterChange = (key: keyof ActivityFilters, value: string | number) => {
+    // Convert "all" values to undefined for proper filtering
+    const actualValue = value === "all" ? undefined : value;
+
     setFilters(prev => ({
       ...prev,
-      [key]: value,
+      [key]: actualValue,
       page: 1, // Reset to first page when filters change
     }));
   };
@@ -240,7 +243,7 @@ export default function ActivitiesPage() {
                     <SelectValue placeholder="Activity type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
                     {ACTIVITY_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
                         {getActivityTypeLabel(type)}

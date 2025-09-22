@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
       conditions.push(`al.project_id = '${project_id}'`);
     }
     if (date_from) {
-      conditions.push(`al.timestamp >= '${date_from}'`);
+      conditions.push(`al.created_at >= '${date_from}'`);
     }
     if (date_to) {
-      conditions.push(`al.timestamp <= '${date_to}'`);
+      conditions.push(`al.created_at <= '${date_to}'`);
     }
 
     const whereClause = conditions.length > 1 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Get total activities count
     const totalQuery = `
       SELECT COUNT(*) as total
-      FROM activity_logs al
+      FROM activity_log al
       ${whereClause}
     `;
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       SELECT
         activity_type,
         COUNT(*) as count
-      FROM activity_logs al
+      FROM activity_log al
       ${whereClause}
       GROUP BY activity_type
       ORDER BY count DESC
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         u.first_name || ' ' || u.last_name as user_name,
         u.role,
         COUNT(al.id) as activity_count
-      FROM activity_logs al
+      FROM activity_log al
       JOIN users u ON al.user_id = u.id
       ${whereClause}
       GROUP BY u.id, u.first_name, u.last_name, u.role
@@ -66,11 +66,11 @@ export async function GET(request: NextRequest) {
     // Get activity timeline for last 24 hours by hour
     const timelineQuery = `
       SELECT
-        EXTRACT(hour FROM timestamp) as hour,
+        EXTRACT(hour FROM created_at) as hour,
         COUNT(*) as count
-      FROM activity_logs al
-      ${whereClause.includes('WHERE') ? whereClause + ' AND' : 'WHERE'} al.timestamp >= NOW() - INTERVAL '24 hours'
-      GROUP BY EXTRACT(hour FROM timestamp)
+      FROM activity_log al
+      ${whereClause.includes('WHERE') ? whereClause + ' AND' : 'WHERE'} al.created_at >= NOW() - INTERVAL '24 hours'
+      GROUP BY EXTRACT(hour FROM created_at)
       ORDER BY hour
     `;
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
         p.id,
         p.name as project_name,
         COUNT(al.id) as activity_count
-      FROM activity_logs al
+      FROM activity_log al
       JOIN projects p ON al.project_id = p.id
       ${whereClause}
       GROUP BY p.id, p.name

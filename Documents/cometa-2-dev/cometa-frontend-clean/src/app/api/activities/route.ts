@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
       conditions.push(`al.activity_type = '${activity_type}'`);
     }
     if (date_from) {
-      conditions.push(`al.timestamp >= '${date_from}'`);
+      conditions.push(`al.created_at >= '${date_from}'`);
     }
     if (date_to) {
-      conditions.push(`al.timestamp <= '${date_to}'`);
+      conditions.push(`al.created_at <= '${date_to}'`);
     }
     if (search) {
       conditions.push(`(al.description ILIKE '%${search}%' OR al.activity_type ILIKE '%${search}%')`);
@@ -49,28 +49,28 @@ export async function GET(request: NextRequest) {
         al.project_id,
         al.activity_type,
         al.description,
-        al.target_type,
-        al.target_id,
+        al.object_type as target_type,
+        al.object_id as target_id,
         al.extra_data,
-        al.timestamp,
-        al.ip_address,
-        al.user_agent,
+        al.created_at as timestamp,
+        null as ip_address,
+        null as user_agent,
         u.first_name || ' ' || u.last_name as user_name,
         u.email as user_email,
         u.role as user_role,
         p.name as project_name
-      FROM activity_logs al
+      FROM activity_log al
       LEFT JOIN users u ON al.user_id = u.id
       LEFT JOIN projects p ON al.project_id = p.id
       ${whereClause}
-      ORDER BY al.timestamp DESC
+      ORDER BY al.created_at DESC
       LIMIT ${per_page} OFFSET ${offset}
     `;
 
     // Get total count
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM activity_logs al
+      FROM activity_log al
       LEFT JOIN users u ON al.user_id = u.id
       LEFT JOIN projects p ON al.project_id = p.id
       ${whereClause}
@@ -172,21 +172,20 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
 
     const insertActivityQuery = `
-      INSERT INTO activity_logs (
+      INSERT INTO activity_log (
         id, user_id, project_id, activity_type, description,
-        target_type, target_id, extra_data, timestamp, ip_address, user_agent
+        object_type, object_id, extra_data, created_at, action
       ) VALUES (
         '${activityId}',
         '${user_id}',
         ${project_id ? `'${project_id}'` : 'NULL'},
         '${activity_type}',
-        '${description.replace(/'/g, "''")}',
+        '${description.replace(/'/g, "''")}',,
         ${target_type ? `'${target_type}'` : 'NULL'},
         ${target_id ? `'${target_id}'` : 'NULL'},
         ${extra_data ? `'${JSON.stringify(extra_data).replace(/'/g, "''")}'` : 'NULL'},
         '${timestamp}',
-        ${ip_address ? `'${ip_address}'` : 'NULL'},
-        ${user_agent ? `'${user_agent.replace(/'/g, "''")}'` : 'NULL'}
+        '${activity_type}'
       )
     `;
 
