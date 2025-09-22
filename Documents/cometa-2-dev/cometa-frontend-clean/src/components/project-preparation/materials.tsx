@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertCircle, Package, ShoppingCart, Calendar, Euro, Truck, Edit, Trash2, CheckCircle, Clock, AlertTriangle, Plus } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertCircle, Package, ShoppingCart, Calendar, Euro, Truck, Edit, Trash2, CheckCircle, Clock, AlertTriangle, Plus, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { useProjectMaterials, useWarehouseMaterials, useAssignMaterialToProject, useUpdateMaterialAssignment, useDeleteMaterialAssignment, useCreateMaterial, ProjectMaterial } from '@/hooks/use-materials';
+import { useMaterialOrders, useUpdateMaterialOrder } from '@/hooks/use-material-orders';
+import { useMaterialOrderBudgetImpact } from '@/hooks/use-material-order-budget';
+import { useProjects } from '@/hooks/use-projects';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
@@ -55,6 +60,7 @@ const STATUS_CONFIG = {
 };
 
 export default function Materials({ projectId }: MaterialsProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('assigned');
   const [editingMaterial, setEditingMaterial] = useState<ProjectMaterial | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -62,6 +68,10 @@ export default function Materials({ projectId }: MaterialsProps) {
 
   const { data: projectMaterials, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProjectMaterials(projectId);
   const { data: warehouseMaterials, isLoading: warehouseLoading, error: warehouseError } = useWarehouseMaterials();
+  const { data: materialOrdersResponse } = useMaterialOrders({ project_id: projectId });
+  const { data: projectsResponse } = useProjects();
+  const materialOrders = materialOrdersResponse?.items || [];
+  const project = projectsResponse?.items?.find(p => p.id === projectId);
   const assignMaterial = useAssignMaterialToProject();
   const updateMaterial = useUpdateMaterialAssignment();
   const deleteMaterial = useDeleteMaterialAssignment();
@@ -241,7 +251,7 @@ export default function Materials({ projectId }: MaterialsProps) {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="assigned">Assigned Materials</TabsTrigger>
           <TabsTrigger value="assign">Assign Materials</TabsTrigger>
-          <TabsTrigger value="create">Create Material</TabsTrigger>
+          <TabsTrigger value="order">Order Materials</TabsTrigger>
         </TabsList>
 
         {/* Assigned Materials Tab */}
@@ -482,155 +492,79 @@ export default function Materials({ projectId }: MaterialsProps) {
           </Card>
         </TabsContent>
 
-        {/* Create Material Tab */}
-        <TabsContent value="create">
+        {/* Order Materials Tab */}
+        <TabsContent value="order">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Material</CardTitle>
+              <CardTitle className="flex items-center space-x-2">
+                <ShoppingCart className="w-5 h-5" />
+                <span>Order Materials</span>
+              </CardTitle>
               <CardDescription>
-                Add a new material to the warehouse inventory
+                Order materials from suppliers for this project
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={createForm.handleSubmit(handleCreateMaterial)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="create-name">Material Name *</Label>
-                    <Input
-                      id="create-name"
-                      type="text"
-                      placeholder="Enter material name"
-                      {...createForm.register('name', { required: true })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="create-sku">SKU (Optional)</Label>
-                    <Input
-                      id="create-sku"
-                      type="text"
-                      placeholder="Enter SKU code"
-                      {...createForm.register('sku')}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="create-unit">Unit *</Label>
-                    <Select onValueChange={(value) => createForm.setValue('unit', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="piece">Piece</SelectItem>
-                        <SelectItem value="meter">Meter</SelectItem>
-                        <SelectItem value="kilogram">Kilogram</SelectItem>
-                        <SelectItem value="liter">Liter</SelectItem>
-                        <SelectItem value="ton">Ton</SelectItem>
-                        <SelectItem value="m3">Cubic Meter</SelectItem>
-                        <SelectItem value="box">Box</SelectItem>
-                        <SelectItem value="pallet">Pallet</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="create-default-price">Default Price (€) *</Label>
-                    <Input
-                      id="create-default-price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Enter default price"
-                      {...createForm.register('default_price_eur', { required: true, valueAsNumber: true })}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="create-purchase-price">Purchase Price (€) *</Label>
-                    <Input
-                      id="create-purchase-price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Enter purchase price"
-                      {...createForm.register('purchase_price_eur', { required: true, valueAsNumber: true })}
-                    />
-                  </div>
-                  <div></div>
-                </div>
-
-                <div>
-                  <Label htmlFor="create-description">Description (Optional)</Label>
-                  <Textarea
-                    id="create-description"
-                    placeholder="Enter material description..."
-                    {...createForm.register('description')}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="create-initial-stock">Initial Stock *</Label>
-                    <Input
-                      id="create-initial-stock"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="Enter initial stock quantity"
-                      {...createForm.register('initial_stock', { required: true, valueAsNumber: true })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="create-min-stock">Minimum Stock *</Label>
-                    <Input
-                      id="create-min-stock"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="Enter minimum stock level"
-                      {...createForm.register('min_stock_level', { required: true, valueAsNumber: true })}
-                    />
-                  </div>
-                </div>
-
-                {createForm.watch('initial_stock') && createForm.watch('default_price_eur') && (
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <h4 className="font-semibold mb-2">Stock Value Summary</h4>
-                    <div className="text-sm space-y-1">
-                      <p>Initial Stock: {createForm.watch('initial_stock')} {createForm.watch('unit') || 'units'}</p>
-                      <p>Default Price: €{createForm.watch('default_price_eur')}</p>
-                      <p>Purchase Price: €{createForm.watch('purchase_price_eur') || 0}</p>
-                      <p className="font-semibold text-green-700">
-                        Total Value: €{((createForm.watch('initial_stock') || 0) * (createForm.watch('default_price_eur') || 0)).toFixed(2)}
+              <div className="space-y-6">
+                {/* Quick Link to Full Order Page */}
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-blue-900">Need to place a complex order?</h4>
+                      <p className="text-sm text-blue-700 mt-1">
+                        Use the full materials ordering interface for multiple items and advanced options
                       </p>
                     </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/dashboard/materials/order?project_id=${projectId}`)}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    >
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Full Order Interface
+                    </Button>
                   </div>
-                )}
-
-                <div className="flex space-x-2 pt-4">
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={createMaterial.isPending || !createForm.watch('name') || !createForm.watch('unit') || !createForm.watch('default_price_eur') || !createForm.watch('purchase_price_eur') || !createForm.watch('initial_stock') || !createForm.watch('min_stock_level')}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    {createMaterial.isPending ? 'Creating...' : 'Create Material'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      createForm.reset();
-                      setActiveTab('assigned');
-                    }}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
                 </div>
-              </form>
+
+                {/* Recent Orders for this Project */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Recent Orders for this Project</h3>
+                  {materialOrders && materialOrders.length > 0 ? (
+                    <div className="space-y-3">
+                      {materialOrders.slice(0, 5).map((order) => (
+                        <OrderCard key={order.id} order={order} />
+                      ))}
+
+                      {materialOrders.length > 5 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push('/dashboard/materials')}
+                          className="w-full"
+                        >
+                          View All Orders ({materialOrders.length})
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No material orders for this project yet</p>
+                      <Button
+                        onClick={() => router.push(`/dashboard/materials/order?project_id=${projectId}`)}
+                        className="mt-3"
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Create First Order
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Order Summary Stats */}
+                {materialOrders && materialOrders.length > 0 && (
+                  <OrderSummaryStats orders={materialOrders} />
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -740,6 +674,260 @@ export default function Materials({ projectId }: MaterialsProps) {
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// OrderSummaryStats component
+function OrderSummaryStats({ orders }: { orders: any[] }) {
+  const totalValue = orders.reduce((sum, order) => sum + order.total_cost_eur, 0);
+  const pendingOrdered = orders.filter(order => order.status === 'pending' || order.status === 'ordered').length;
+
+  return (
+    <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+      <div className="text-center">
+        <p className="text-2xl font-bold text-blue-600">
+          {orders.length}
+        </p>
+        <p className="text-sm text-gray-600">Total Orders</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl font-bold text-green-600">
+          €{totalValue.toFixed(0)}
+        </p>
+        <p className="text-sm text-gray-600">Total Value</p>
+        <p className="text-xs text-green-600 mt-1">Budget Impact</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl font-bold text-orange-600">
+          {pendingOrdered}
+        </p>
+        <p className="text-sm text-gray-600">Pending/Ordered</p>
+      </div>
+    </div>
+  );
+}
+
+// OrderCard component with budget impact indicator and status management
+function OrderCard({ order }: { order: any }) {
+  const { data: budgetImpact } = useMaterialOrderBudgetImpact(order.id);
+  const updateOrder = useUpdateMaterialOrder();
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [newStatus, setNewStatus] = useState(order.status);
+  const [actualDeliveryDate, setActualDeliveryDate] = useState('');
+  const [notes, setNotes] = useState(order.notes || '');
+
+  const handleStatusUpdate = async () => {
+    try {
+      const updateData: any = {
+        status: newStatus,
+        notes: notes || undefined,
+      };
+
+      if (newStatus === 'delivered' && actualDeliveryDate) {
+        updateData.actual_delivery_date = actualDeliveryDate;
+      }
+
+      await updateOrder.mutateAsync({
+        id: order.id,
+        data: updateData,
+      });
+
+      setShowStatusDialog(false);
+      toast.success('Order status updated successfully');
+    } catch (error) {
+      toast.error('Failed to update order status');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'ordered':
+        return 'bg-blue-100 text-blue-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'ordered':
+        return <Truck className="w-4 h-4" />;
+      case 'pending':
+        return <Clock className="w-4 h-4" />;
+      case 'cancelled':
+        return <AlertTriangle className="w-4 h-4" />;
+      default:
+        return <Package className="w-4 h-4" />;
+    }
+  };
+
+  return (
+    <div className="p-4 border rounded-lg hover:shadow-sm transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center space-x-3 mb-2">
+            <h4 className="font-medium">Order #{order.id.slice(0, 8)}</h4>
+            <Badge className={getStatusColor(order.status)}>
+              {getStatusIcon(order.status)}
+              <span className="ml-1 capitalize">{order.status}</span>
+            </Badge>
+            {budgetImpact?.has_budget_impact && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <Euro className="w-3 h-3 mr-1" />
+                Budget Applied
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-1 text-sm text-gray-600">
+            <div className="flex items-center space-x-4">
+              <span className="flex items-center">
+                <Calendar className="w-4 h-4 mr-1" />
+                Ordered: {new Date(order.order_date).toLocaleDateString()}
+              </span>
+              {order.expected_delivery_date && (
+                <span className="flex items-center">
+                  <Truck className="w-4 h-4 mr-1" />
+                  Expected: {new Date(order.expected_delivery_date).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+
+            {order.actual_delivery_date && (
+              <div className="flex items-center text-green-600">
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Delivered: {new Date(order.actual_delivery_date).toLocaleDateString()}
+              </div>
+            )}
+
+            {order.supplier_name && (
+              <p>Supplier: {order.supplier_name}</p>
+            )}
+
+            {order.material_type && (
+              <p>Material: {order.material_type}</p>
+            )}
+
+            {budgetImpact?.has_budget_impact && (
+              <p className="text-green-600">
+                €{budgetImpact.amount_deducted?.toFixed(2)} deducted from project budget
+              </p>
+            )}
+
+            {order.notes && (
+              <p className="text-gray-500 italic">Note: {order.notes}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <div className="text-right">
+            <p className="font-semibold">€{order.total_cost_eur.toFixed(2)}</p>
+            <p className="text-sm text-gray-600">{order.quantity} units</p>
+            {order.unit_price_eur && (
+              <p className="text-xs text-gray-500">€{order.unit_price_eur}/unit</p>
+            )}
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Order Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowStatusDialog(true)}>
+                <Edit className="w-4 h-4 mr-2" />
+                Update Status
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`/dashboard/materials?order=${order.id}`, '_blank')}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Status Update Dialog */}
+      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Order Status</DialogTitle>
+            <DialogDescription>
+              Update the status and details for Order #{order.id.slice(0, 8)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="status">Order Status</Label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="ordered">Ordered</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {newStatus === 'delivered' && (
+              <div>
+                <Label htmlFor="actual_delivery_date">Actual Delivery Date</Label>
+                <Input
+                  id="actual_delivery_date"
+                  type="date"
+                  value={actualDeliveryDate}
+                  onChange={(e) => setActualDeliveryDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any notes about this order..."
+                rows={3}
+              />
+            </div>
+
+            <div className="flex space-x-2 pt-4">
+              <Button
+                onClick={handleStatusUpdate}
+                disabled={updateOrder.isPending}
+                className="flex-1"
+              >
+                {updateOrder.isPending ? 'Updating...' : 'Update Order'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowStatusDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

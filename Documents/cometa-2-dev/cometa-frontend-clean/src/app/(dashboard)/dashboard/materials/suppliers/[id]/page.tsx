@@ -41,12 +41,17 @@ import {
   useSupplierProjects,
   useCreateSupplierContact,
   useDeleteSupplierContact,
+  useCreateSupplierMaterial,
+  useCreateSupplierProjectAssignment,
   type CreateContactData,
+  type CreateMaterialData,
+  type CreateProjectAssignmentData,
   type SupplierContact,
   type SupplierMaterial,
   type ProjectAssignment
 } from "@/hooks/use-suppliers";
 import { usePermissions } from "@/hooks/use-auth";
+import { useProjects } from "@/hooks/use-projects";
 
 const contactSchema = z.object({
   contact_name: z.string().min(1, "Contact name is required"),
@@ -58,7 +63,26 @@ const contactSchema = z.object({
   notes: z.string().optional(),
 });
 
+const materialSchema = z.object({
+  material_type: z.string().min(1, "Material type is required"),
+  unit: z.string().min(1, "Unit is required"),
+  unit_price_eur: z.number().positive("Price must be positive"),
+  has_delivery: z.boolean().default(false),
+  delivery_cost_eur: z.number().optional(),
+  pickup_address: z.string().optional(),
+  min_order_quantity: z.number().positive("Minimum order quantity must be positive").default(1),
+  notes: z.string().optional(),
+});
+
+const projectAssignmentSchema = z.object({
+  project_id: z.string().min(1, "Project is required"),
+  notes: z.string().optional(),
+  assigned_by: z.string().optional(),
+});
+
 type ContactFormData = z.infer<typeof contactSchema>;
+type MaterialFormData = z.infer<typeof materialSchema>;
+type ProjectAssignmentFormData = z.infer<typeof projectAssignmentSchema>;
 
 export default function SupplierDetailPage() {
   const params = useParams();
@@ -67,15 +91,21 @@ export default function SupplierDetailPage() {
   const supplierId = params.id as string;
 
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
+  const [isAssignProjectOpen, setIsAssignProjectOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any>(null);
 
   const { data: supplier, isLoading } = useSupplier(supplierId);
   const { data: contacts = [], isLoading: contactsLoading } = useSupplierContacts(supplierId);
   const { data: supplierMaterials = [], isLoading: materialsLoading } = useSupplierMaterials(supplierId);
   const { data: assignedProjects = [], isLoading: projectsLoading } = useSupplierProjects(supplierId);
+  const { data: projectsResponse, isLoading: allProjectsLoading } = useProjects();
+  const projects = projectsResponse?.items || [];
 
   const createContact = useCreateSupplierContact(supplierId);
   const deleteContact = useDeleteSupplierContact(supplierId);
+  const createMaterial = useCreateSupplierMaterial(supplierId);
+  const createProjectAssignment = useCreateSupplierProjectAssignment(supplierId);
 
   const contactForm = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -90,12 +120,55 @@ export default function SupplierDetailPage() {
     },
   });
 
+  const materialForm = useForm<MaterialFormData>({
+    resolver: zodResolver(materialSchema),
+    defaultValues: {
+      material_type: "",
+      unit: "",
+      unit_price_eur: 0,
+      has_delivery: false,
+      delivery_cost_eur: 0,
+      pickup_address: "",
+      min_order_quantity: 1,
+      notes: "",
+    },
+  });
+
+  const projectAssignmentForm = useForm<ProjectAssignmentFormData>({
+    resolver: zodResolver(projectAssignmentSchema),
+    defaultValues: {
+      project_id: "",
+      notes: "",
+      assigned_by: "",
+    },
+  });
+
 
   const handleAddContact = async (data: ContactFormData) => {
     try {
       await createContact.mutateAsync(data);
       setIsAddContactOpen(false);
       contactForm.reset();
+    } catch (error) {
+      // Error is handled by the mutation hook
+    }
+  };
+
+  const handleAddMaterial = async (data: MaterialFormData) => {
+    try {
+      await createMaterial.mutateAsync(data);
+      setIsAddMaterialOpen(false);
+      materialForm.reset();
+    } catch (error) {
+      // Error is handled by the mutation hook
+    }
+  };
+
+  const handleAssignProject = async (data: ProjectAssignmentFormData) => {
+    try {
+      await createProjectAssignment.mutateAsync(data);
+      setIsAssignProjectOpen(false);
+      projectAssignmentForm.reset();
     } catch (error) {
       // Error is handled by the mutation hook
     }
@@ -480,7 +553,7 @@ export default function SupplierDetailPage() {
                     <CardDescription>Materials and equipment available from this supplier</CardDescription>
                   </div>
                   {canManageInventory && (
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => setIsAddMaterialOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add Material
                     </Button>
@@ -509,7 +582,7 @@ export default function SupplierDetailPage() {
                         Get started by adding materials or equipment to this supplier.
                       </p>
                       {canManageInventory && (
-                        <Button className="mt-4">
+                        <Button className="mt-4" onClick={() => setIsAddMaterialOpen(true)}>
                           <Plus className="mr-2 h-4 w-4" />
                           Add Material
                         </Button>
@@ -562,7 +635,7 @@ export default function SupplierDetailPage() {
                     <CardDescription>Projects where this supplier is assigned</CardDescription>
                   </div>
                   {canManageInventory && (
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => setIsAssignProjectOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />
                       Assign to Project
                     </Button>
@@ -589,7 +662,7 @@ export default function SupplierDetailPage() {
                         Assign this supplier to projects to track material orders.
                       </p>
                       {canManageInventory && (
-                        <Button className="mt-4">
+                        <Button className="mt-4" onClick={() => setIsAssignProjectOpen(true)}>
                           <Plus className="mr-2 h-4 w-4" />
                           Assign to Project
                         </Button>
@@ -682,6 +755,263 @@ export default function SupplierDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Add Material Dialog */}
+      <Dialog open={isAddMaterialOpen} onOpenChange={setIsAddMaterialOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Material</DialogTitle>
+            <DialogDescription>
+              Add a new material or equipment item for {supplier.org_name}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...materialForm}>
+            <form onSubmit={materialForm.handleSubmit(handleAddMaterial)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={materialForm.control}
+                  name="material_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Material Type *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Fiber optic cable, Cable duct" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={materialForm.control}
+                  name="unit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="meter">Meter</SelectItem>
+                          <SelectItem value="piece">Piece</SelectItem>
+                          <SelectItem value="box">Box</SelectItem>
+                          <SelectItem value="roll">Roll</SelectItem>
+                          <SelectItem value="kg">Kilogram</SelectItem>
+                          <SelectItem value="ton">Ton</SelectItem>
+                          <SelectItem value="m3">Cubic Meter</SelectItem>
+                          <SelectItem value="liter">Liter</SelectItem>
+                          <SelectItem value="pallet">Pallet</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={materialForm.control}
+                  name="unit_price_eur"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit Price (EUR) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={materialForm.control}
+                  name="min_order_quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Minimum Order Quantity *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="1"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={materialForm.control}
+                name="has_delivery"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Delivery Available</FormLabel>
+                      <div className="text-sm text-muted-foreground">
+                        Does this supplier offer delivery for this material?
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {materialForm.watch("has_delivery") && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={materialForm.control}
+                    name="delivery_cost_eur"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Delivery Cost (EUR)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={materialForm.control}
+                    name="pickup_address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pickup Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Warehouse address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              <FormField
+                control={materialForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Additional notes about this material..."
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAddMaterialOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMaterial.isPending}>
+                  {createMaterial.isPending ? "Adding..." : "Add Material"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Project Dialog */}
+      <Dialog open={isAssignProjectOpen} onOpenChange={setIsAssignProjectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign to Project</DialogTitle>
+            <DialogDescription>
+              Assign {supplier.org_name} to a project for material tracking
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...projectAssignmentForm}>
+            <form onSubmit={projectAssignmentForm.handleSubmit(handleAssignProject)} className="space-y-4">
+              <FormField
+                control={projectAssignmentForm.control}
+                name="project_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project *</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a project" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {allProjectsLoading ? (
+                          <SelectItem value="" disabled>Loading projects...</SelectItem>
+                        ) : projects.length === 0 ? (
+                          <SelectItem value="" disabled>No projects available</SelectItem>
+                        ) : projects
+                          .filter(project => !assignedProjects.some(assigned => assigned.project_id === project.id))
+                          .map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name} - {project.customer || 'No customer'}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={projectAssignmentForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Assignment notes..."
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAssignProjectOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createProjectAssignment.isPending}>
+                  {createProjectAssignment.isPending ? "Assigning..." : "Assign Project"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
