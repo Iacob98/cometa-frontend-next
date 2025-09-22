@@ -1,0 +1,465 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "created": "2025-01-22T00:00:00Z",
+    "description": "COMETA Fiber Optic Construction Management System Migration Tasks",
+    "project": "cometa-2-dev"
+  },
+  "tags": {
+    "master": {
+      "name": "master",
+      "description": "Main development branch tasks",
+      "created": "2025-01-22T00:00:00Z",
+      "tasks": {
+        "1": {
+          "id": "1",
+          "title": "Critical Security Vulnerability Fixes",
+          "description": "Address critical security vulnerabilities including SQL injection, CORS configuration, and authentication standardization",
+          "status": "pending",
+          "priority": "high",
+          "details": "Fix SQL injection vulnerability in Next.js API routes (cometa-frontend-clean/src/app/api/auth/login/route.ts:L29), configure production-ready CORS settings, and standardize authentication across Streamlit and FastAPI components.",
+          "testStrategy": "Security testing with automated vulnerability scanning, manual penetration testing of API endpoints, validation of parameterized queries",
+          "dependencies": [],
+          "subtasks": []
+        },
+        "2": {
+          "id": "2",
+          "title": "Database Access Security Implementation",
+          "description": "Replace Docker exec database access with proper connection pooling and secure database connections",
+          "status": "pending",
+          "priority": "high",
+          "details": "Eliminate the security risk of using docker exec for database queries in Next.js API routes. Implement proper PostgreSQL connection pooling and replace direct SQL execution with parameterized queries through proper database clients.",
+          "testStrategy": "Database connection testing, performance testing of connection pools, security validation of query execution",
+          "dependencies": [
+            "1"
+          ],
+          "subtasks": []
+        },
+        "3": {
+          "id": "3",
+          "title": "Authentication System Unification",
+          "description": "Standardize authentication flow across all frontend applications (Streamlit, Next.js, FastAPI)",
+          "status": "pending",
+          "priority": "high",
+          "details": "Create unified authentication system supporting PIN-based login for field workers while maintaining JWT tokens for API access. Ensure consistent session management across Streamlit admin/worker apps and Next.js frontend.",
+          "testStrategy": "Authentication flow testing across all interfaces, session persistence validation, role-based access testing",
+          "dependencies": [
+            "1",
+            "2"
+          ],
+          "subtasks": []
+        },
+        "4": {
+          "id": "4",
+          "title": "Next.js Admin Portal Feature Migration",
+          "description": "Complete migration of all Streamlit admin portal features to Next.js with feature parity",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Migrate all 13 numbered pages from admin_app/pages/ to Next.js routes, including project management, work entries, teams, materials, financial tracking, reports, equipment, and project preparation modules.",
+          "testStrategy": "Feature-by-feature testing, user workflow validation, data integrity testing, UI/UX acceptance testing",
+          "dependencies": [
+            "3"
+          ],
+          "subtasks": []
+        },
+        "5": {
+          "id": "5",
+          "title": "Mobile Worker Portal PWA Implementation",
+          "description": "Convert worker portal from Streamlit to Progressive Web App for mobile field workers",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Create mobile-first PWA replacing worker_app Streamlit interface. Focus on work entry, photo upload, GPS tracking, and offline capabilities for field workers on tablets and smartphones.",
+          "testStrategy": "Mobile device testing, offline functionality validation, GPS accuracy testing, photo upload and sync testing",
+          "dependencies": [
+            "3"
+          ],
+          "subtasks": []
+        },
+        "6": {
+          "id": "6",
+          "title": "Real-time Updates with WebSocket",
+          "description": "Implement real-time updates across all interfaces using WebSocket connections",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Add Socket.io integration for real-time updates of work entries, project status, team assignments, and activity logs. Ensure consistent real-time data across admin, worker, and mobile interfaces.",
+          "testStrategy": "Real-time sync testing, connection resilience testing, performance under concurrent users, message delivery validation",
+          "dependencies": [
+            "4",
+            "5"
+          ],
+          "subtasks": []
+        },
+        "7": {
+          "id": "7",
+          "title": "Database Migration System Implementation",
+          "description": "Implement formal database migration system with version control and rollback capabilities",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Create Alembic-based migration system for database schema changes, ensuring consistent database state across environments with rollback capabilities and migration history tracking.",
+          "testStrategy": "Migration testing in development/staging environments, rollback testing, schema validation, data integrity verification",
+          "dependencies": [
+            "2"
+          ],
+          "subtasks": []
+        },
+        "8": {
+          "id": "8",
+          "title": "API Documentation and OpenAPI Integration",
+          "description": "Create comprehensive API documentation with OpenAPI specifications for all microservices",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Generate complete OpenAPI documentation for all 7 FastAPI microservices, implement interactive API documentation, and create client SDK generation for frontend consumption.",
+          "testStrategy": "Documentation completeness validation, API testing through documentation interface, SDK generation testing",
+          "dependencies": [
+            "3"
+          ],
+          "subtasks": []
+        },
+        "9": {
+          "id": "9",
+          "title": "Performance Optimization and Caching",
+          "description": "Implement comprehensive caching strategy and performance optimizations",
+          "status": "pending",
+          "priority": "low",
+          "details": "Add Redis caching for frequently accessed data, implement API response caching, optimize database queries with indexing, and add performance monitoring.",
+          "testStrategy": "Performance benchmarking, load testing, cache hit rate analysis, database performance monitoring",
+          "dependencies": [
+            "6",
+            "7"
+          ],
+          "subtasks": []
+        },
+        "10": {
+          "id": "10",
+          "title": "Comprehensive Testing Implementation",
+          "description": "Implement comprehensive testing strategy across all components",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Add unit tests for all business logic, integration tests for API endpoints, end-to-end tests for user workflows, and performance testing under load conditions.",
+          "testStrategy": "Test coverage analysis, automated test execution, performance benchmarking, continuous testing integration",
+          "dependencies": [
+            "8"
+          ],
+          "subtasks": []
+        },
+        "11": {
+          "id": "11",
+          "title": "Monitoring and Observability Setup",
+          "description": "Implement monitoring, logging, and observability for the entire system",
+          "status": "pending",
+          "priority": "low",
+          "details": "Set up centralized logging, metrics collection with Prometheus, distributed tracing, health monitoring, and alerting for all microservices and frontend applications.",
+          "testStrategy": "Monitoring system validation, alert testing, log aggregation verification, metrics accuracy validation",
+          "dependencies": [
+            "9"
+          ],
+          "subtasks": []
+        },
+        "12": {
+          "id": "12",
+          "title": "CI/CD Pipeline Implementation",
+          "description": "Create automated CI/CD pipeline for deployment and testing",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Implement automated testing, building, and deployment pipeline with proper staging environments, automated security scanning, and rollback capabilities.",
+          "testStrategy": "Pipeline testing, deployment validation, rollback testing, security scan integration",
+          "dependencies": [
+            "10"
+          ],
+          "subtasks": []
+        },
+        "13": {
+          "id": "13",
+          "title": "Streamlit Legacy System Deprecation",
+          "description": "Safely deprecate legacy Streamlit applications after migration completion",
+          "status": "pending",
+          "priority": "low",
+          "details": "Create migration plan for users, data export/import validation, gradual system shutdown, and cleanup of legacy code and infrastructure.",
+          "testStrategy": "Migration validation, user acceptance testing, data integrity verification, system cleanup validation",
+          "dependencies": [
+            "4",
+            "5",
+            "6"
+          ],
+          "subtasks": []
+        },
+        "14": {
+          "id": "14",
+          "title": "User Training and Documentation",
+          "description": "Create comprehensive user documentation and training materials",
+          "status": "pending",
+          "priority": "low",
+          "details": "Develop user manuals for each role type (admin, pm, foreman, crew, viewer), create video tutorials, migration guides, and conduct user training sessions.",
+          "testStrategy": "Documentation review, user feedback collection, training effectiveness assessment",
+          "dependencies": [
+            "13"
+          ],
+          "subtasks": []
+        },
+        "15": {
+          "id": "15",
+          "title": "System Optimization and Enhancement",
+          "description": "Final system optimization, enhancement features, and production readiness",
+          "status": "pending",
+          "priority": "low",
+          "details": "Implement advanced analytics, enhanced reporting capabilities, performance fine-tuning, security hardening, and final production deployment preparation.",
+          "testStrategy": "Production readiness checklist, performance validation, security assessment, user acceptance testing",
+          "dependencies": [
+            "11",
+            "12",
+            "14"
+          ],
+          "subtasks": []
+        }
+      }
+    }
+  },
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Repository",
+        "description": "Initialize the project repository with optimized Next.js 15+ and FastAPI structure following latest best practices, including Docker Compose configuration.",
+        "status": "in-progress",
+        "dependencies": [],
+        "priority": "high",
+        "details": "Create and optimize repository structure with:\n\nNext.js 15+ (App Router):\n- Use /app directory structure (app/layout.tsx, app/page.tsx)\n- Configure app/api/*/route.ts for API routes\n- Enable Turbopack for development\n- Implement proper TypeScript setup\n\nFastAPI Microservices:\n- Use recommended structure (app/__init__.py, app/main.py, app/routers/)\n- Implement APIRouter for modular routes\n- Follow OpenAPI 3.1.0 standards\n- Configure proper authentication (HTTPBasic/HTTPBearer)\n\nSecurity:\n- Use secrets.compare_digest() for credential validation\n- Configure proper CORS settings\n- Secure Docker project structure\n\nInclude Docker Compose for local development with PostgreSQL and Supabase integration, with proper environment variables.",
+        "testStrategy": "1. Verify repository structure follows latest best practices\n2. Test Docker Compose setup with all services starting without errors\n3. Validate Next.js 15+ features (Turbopack, App Router)\n4. Verify FastAPI microservices structure and authentication\n5. Check security implementations (CORS, credential validation)",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "",
+            "description": "Set up Next.js 15+ project with App Router structure",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "",
+            "description": "Configure FastAPI microservices with proper project structure and routers",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "",
+            "description": "Implement security best practices (authentication, CORS, credential validation)",
+            "status": "pending",
+            "dependencies": [],
+            "details": "<info added on 2025-09-22T09:50:48.795Z>\n1. Fix CORS settings in auth_service/main.py to restrict origins instead of using allow_origins=[\"*\"]\n2. Implement secrets.compare_digest() for secure password/PIN validation\n3. Restructure FastAPI services following Context7 patterns (app/routers/ structure)\n4. Add proper HTTPBasic/HTTPBearer authentication according to Context7 standards\n5. Verify all security implementations pass security audits and follow best practices\n</info added on 2025-09-22T09:50:48.795Z>\n<info added on 2025-09-22T09:53:22.671Z>\nSECURITY IMPLEMENTATIONS COMPLETED:\n\nCRITICAL FIXES IMPLEMENTED:\n1. CORS settings updated in auth_service and gateway:\n   - Replaced allow_origins=[\"*\"] with specific allowed origins\n   - Added PRODUCTION_ORIGINS support from environment variables\n   - Restricted methods and headers to required only\n\n2. TIMING ATTACKS PROTECTION:\n   - Implemented secrets.compare_digest() for PIN validation in auth_service/main.py\n   - Now uses timing-attack-safe comparison\n   - Prevents password correctness determination via response time\n\n3. SQL INJECTION FIXED:\n   - Rewrote Next.js login API route completely\n   - Removed direct SQL execution via docker exec\n   - All queries now go through FastAPI auth service\n\nSECURITY IMPROVEMENTS:\n- All critical vulnerabilities addressed\n- Proper API Gateway architecture implemented\n- Context7 security best practices followed\n\nREADY TO PROCEED WITH PROJECT STRUCTURE OPTIMIZATION\n</info added on 2025-09-22T09:53:22.671Z>",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "",
+            "description": "Set up Docker Compose with PostgreSQL and Supabase integration",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "",
+            "description": "Configure environment variables and verify all services",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Authentication System",
+        "description": "Develop PIN-based authentication with JWT tokens and role-based access control.",
+        "details": "Use FastAPI for backend authentication. Implement PIN validation (4-6 digits), JWT token generation, and role-based access control (admin, pm, foreman, crew, viewer, worker). Store PINs securely using hashing.",
+        "testStrategy": "Test authentication flow with different roles and PINs. Verify JWT token validation and role enforcement.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Migrate Admin Portal to Next.js",
+        "description": "Convert the legacy Streamlit admin portal to a Next.js frontend with all existing features.",
+        "details": "Use Next.js 15+, React 19+, and TypeScript. Implement TanStack Query for server state and Zustand for client state. Use shadcn/ui components for UI consistency.",
+        "testStrategy": "Compare functionality with the legacy admin portal. Test all features for parity.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Migrate Worker Portal to PWA",
+        "description": "Convert the legacy Streamlit worker portal to a Progressive Web App (PWA) for mobile use.",
+        "details": "Develop a responsive PWA using Next.js. Focus on mobile-first design for field workers. Include offline capabilities and real-time updates via WebSocket.",
+        "testStrategy": "Test on mobile devices for usability and offline functionality. Verify real-time updates.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement Project Management Hierarchy",
+        "description": "Develop the project, cabinet, segment, cut, and work entry management system.",
+        "details": "Use FastAPI for backend logic and PostgreSQL for data storage. Implement CRUD operations for projects, cabinets, segments, cuts, and work entries. Include GPS validation for work entries.",
+        "testStrategy": "Test CRUD operations and GPS validation. Verify data integrity.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Develop Team & Crew Management",
+        "description": "Build crew assignment, scheduling, and qualification tracking features.",
+        "details": "Implement crew assignment logic, scheduling, and skills tracking. Include foreman approval workflows. Use PostgreSQL for data storage.",
+        "testStrategy": "Test crew assignment and approval workflows. Verify skills tracking.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Implement Material & Inventory Management",
+        "description": "Develop warehouse stock tracking, supplier management, and material allocation.",
+        "details": "Use FastAPI for backend logic. Implement stock tracking, supplier management, and material allocation. Include order management and delivery tracking.",
+        "testStrategy": "Test stock updates, supplier interactions, and material allocation.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Develop Equipment & Vehicle Management",
+        "description": "Build equipment assignment, rental management, and maintenance tracking.",
+        "details": "Implement equipment assignment, rental rates, and maintenance scheduling. Use PostgreSQL for data storage.",
+        "testStrategy": "Test equipment assignment and rental workflows. Verify maintenance tracking.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement Work Entry & Progress Tracking",
+        "description": "Develop GPS-required work entries with photo uploads and approval workflows.",
+        "details": "Use FastAPI for backend logic. Implement work entries with GPS validation, photo uploads, and multi-level approval workflows (crew → foreman → pm).",
+        "testStrategy": "Test GPS validation, photo uploads, and approval workflows.",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Implement Financial Management",
+        "description": "Develop cost tracking, invoice generation, and budget reporting.",
+        "details": "Use FastAPI for backend logic. Implement cost tracking per project, invoice generation, and budget variance reporting. Include multi-currency support (EUR primary).",
+        "testStrategy": "Test cost tracking, invoice generation, and currency conversion.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Implement Document Management",
+        "description": "Develop document storage, photo management, and report generation.",
+        "details": "Use Supabase for file storage. Implement document categorization, photo management with GPS metadata, and report generation (CSV, Excel, HTML).",
+        "testStrategy": "Test file uploads, photo metadata, and report generation.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Activity Logging & Audit Trail",
+        "description": "Develop comprehensive activity logging with real-time monitoring.",
+        "details": "Use FastAPI for backend logic. Implement logging for 40+ event types. Include real-time monitoring and advanced filtering.",
+        "testStrategy": "Test logging for all event types. Verify real-time updates and filtering.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Implement Multi-Language Support",
+        "description": "Add support for German, Russian, English, Uzbek, and Turkish.",
+        "details": "Use next-intl for internationalization. Implement language switching and localized content for all supported languages.",
+        "testStrategy": "Test language switching and localized content accuracy.",
+        "priority": "low",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Real-Time Updates",
+        "description": "Add WebSocket-based real-time updates for all critical workflows.",
+        "details": "Use Socket.io for real-time updates. Implement WebSocket connections for work entries, approvals, and notifications.",
+        "testStrategy": "Test real-time updates for work entries and approvals.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Perform Security Hardening",
+        "description": "Address SQL injection, CORS, input validation, and database access issues.",
+        "details": "Replace direct SQL with parameterized queries. Configure production-ready CORS. Add input validation middleware. Implement connection pooling.",
+        "testStrategy": "Test for SQL injection vulnerabilities. Verify CORS and input validation.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-09-22T09:43:06.978Z",
+      "updated": "2025-09-22T09:49:16.547Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

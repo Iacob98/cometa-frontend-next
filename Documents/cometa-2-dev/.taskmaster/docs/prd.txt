@@ -1,0 +1,229 @@
+# COMETA Fiber Optic Construction Management System - Product Requirements Document
+
+## Project Overview
+
+COMETA is a comprehensive Fiber Optic Construction Management System designed to manage construction projects, work tracking, materials, equipment, and team assignments for fiber optic cable installation. The system currently operates with a hybrid architecture combining legacy Streamlit applications and modern Next.js/FastAPI microservices.
+
+## Current Architecture & Migration Goals
+
+### Current State
+- **Legacy Streamlit Apps**: Admin portal (port 8501) and Worker portal (port 8502) with Python/PostgreSQL
+- **Modern Next.js Frontend**: React 19.1.0 with TanStack Query, Zustand, shadcn/ui components
+- **FastAPI Microservices**: 7 microservices (auth, project, work, team, material, equipment, activity) with API Gateway
+- **Database**: PostgreSQL 14 with SQLAlchemy ORM, Supabase integration
+- **Infrastructure**: Docker Compose orchestration
+
+### Migration Objectives
+Complete migration from Streamlit-based legacy system to modern Next.js + FastAPI architecture while maintaining all existing functionality and improving security, performance, and user experience.
+
+## Core System Requirements
+
+### 1. Authentication & User Management
+- PIN-based authentication system (4-6 digits) for easy field worker access
+- Role-based access control: admin, project manager (pm), foreman, crew, viewer, worker
+- Multi-language support: German (default), Russian, English, Uzbek, Turkish
+- Session management across web and mobile interfaces
+
+### 2. Project Management Hierarchy
+- **Projects**: Main construction projects with customer info, dates, status tracking
+- **Cabinets**: Network distribution points within projects
+- **Segments**: Cable routes between cabinets with surface/area specifications
+- **Cuts**: Excavation sections within segments
+- **Work Entries**: Detailed work logs with GPS coordinates, photos, time tracking
+
+### 3. Team & Crew Management
+- Crew assignment and scheduling
+- Skills tracking and qualification management
+- Foreman supervision and approval workflows
+- Worker mobile interface for field operations
+
+### 4. Material & Inventory Management
+- Central warehouse stock tracking with automatic deductions
+- Supplier management with flexible pricing structures
+- Material allocation to projects with usage tracking
+- Order management with delivery tracking
+- Support for any material type (cables, pipes, sand, concrete, etc.)
+
+### 5. Equipment & Vehicle Management
+- Equipment assignment tracking to projects/crews
+- Vehicle rental management with daily/hourly rates
+- Maintenance scheduling and fuel/expense tracking
+- Availability tracking and conflict resolution
+
+### 6. Work Entry & Progress Tracking
+- GPS-required work entries with coordinate validation
+- Stage-specific photo requirements for quality assurance
+- Multi-level approval workflow: crew → foreman → project manager
+- Progress tracking by cuts and segments
+
+### 7. Financial Management
+- Cost tracking per project, material, equipment, labor
+- Invoice generation and billing management
+- Budget tracking and variance reporting
+- Multi-currency support with EUR as primary
+
+### 8. Document Management
+- Project document storage and categorization
+- Photo management with GPS metadata
+- Report generation (CSV, Excel, HTML formats)
+- Supabase storage integration for files
+
+### 9. Activity Logging & Audit Trail
+- Comprehensive activity logging: "who did what where when"
+- 40+ tracked event types across all system operations
+- Real-time monitoring with auto-refresh capabilities
+- Advanced filtering and search functionality
+
+### 10. Multi-Portal Architecture
+- **Admin Portal**: Full management interface with all system features
+- **Worker Portal**: Simplified field interface for work entry and photo upload
+- **Mobile PWA**: Responsive design for field workers on tablets/phones
+
+## Technical Requirements
+
+### Frontend (Next.js)
+- Next.js 15+ with App Router
+- React 19+ with TypeScript
+- TanStack Query for server state management
+- Zustand for client state management
+- shadcn/ui + Radix UI components
+- Tailwind CSS for styling
+- Leaflet for mapping functionality
+- Socket.io for real-time updates
+- next-intl for internationalization
+
+### Backend (FastAPI)
+- FastAPI microservices architecture
+- PostgreSQL 14 with SQLAlchemy 2.0 ORM
+- JWT token authentication
+- API Gateway pattern for service routing
+- Health checks and monitoring endpoints
+- Comprehensive error handling and logging
+
+### Infrastructure
+- Docker Compose for local development
+- PostgreSQL database with UUID primary keys
+- Supabase integration for file storage
+- Environment-based configuration
+- Health checks and service discovery
+
+## Security Requirements
+
+### Critical Security Issues to Address
+1. **SQL Injection Prevention**: Replace direct SQL string interpolation with parameterized queries
+2. **Authentication Security**: Standardize authentication across all frontends
+3. **CORS Configuration**: Implement production-ready CORS settings
+4. **Input Validation**: Add comprehensive validation middleware
+5. **Database Access**: Replace Docker exec database access with proper connection pooling
+
+### Security Standards
+- Role-based access control (RBAC) enforcement
+- Secure PIN code storage and validation
+- Session management with secure tokens
+- File upload validation and sanitization
+- Audit logging for compliance requirements
+
+## Performance Requirements
+
+### Response Time Targets
+- API responses: < 200ms for simple queries, < 1s for complex operations
+- Page load times: < 2s initial load, < 500ms navigation
+- Real-time updates: < 100ms latency for WebSocket updates
+- File uploads: Support for files up to 50MB
+
+### Scalability Requirements
+- Support for 100+ concurrent users
+- Handle 1000+ projects with 10,000+ work entries
+- Efficient pagination for large datasets
+- Optimistic updates for better user experience
+
+## Migration Strategy
+
+### Phase 1: Security & Stability
+- Fix critical security vulnerabilities (SQL injection, CORS)
+- Implement proper database connection pooling
+- Add comprehensive input validation
+- Standardize authentication across all components
+
+### Phase 2: Feature Parity
+- Complete Next.js implementation of all Streamlit features
+- Migrate admin portal functionality
+- Implement mobile-first worker interface
+- Add real-time updates via WebSocket
+
+### Phase 3: Enhanced Functionality
+- Advanced reporting and analytics
+- Improved mobile experience with PWA
+- Performance optimizations and caching
+- Enhanced user experience features
+
+## Success Criteria
+
+### Functional Success
+- Complete feature parity with existing Streamlit system
+- All user roles can perform their required tasks
+- Data integrity maintained throughout migration
+- No downtime during migration process
+
+### Technical Success
+- All security vulnerabilities resolved
+- Performance targets met or exceeded
+- Modern, maintainable codebase
+- Comprehensive test coverage
+
+### User Experience Success
+- Improved interface usability and responsiveness
+- Better mobile experience for field workers
+- Faster operations and reduced loading times
+- Positive user feedback and adoption
+
+## Timeline & Priorities
+
+### High Priority (Security Critical)
+1. Fix SQL injection vulnerabilities
+2. Implement proper authentication security
+3. Add input validation and sanitization
+4. Configure production-ready CORS settings
+
+### Medium Priority (Feature Migration)
+1. Complete Next.js admin portal implementation
+2. Migrate worker portal to PWA
+3. Implement real-time updates
+4. Add comprehensive testing
+
+### Low Priority (Enhancement)
+1. Advanced analytics and reporting
+2. Performance optimizations
+3. Enhanced user experience features
+4. Documentation and training materials
+
+## Quality Assurance
+
+### Testing Requirements
+- Unit tests for all business logic
+- Integration tests for API endpoints
+- End-to-end tests for critical user workflows
+- Performance testing under load
+- Security testing and vulnerability scanning
+
+### Documentation Requirements
+- API documentation with OpenAPI/Swagger
+- User manuals for each role type
+- Technical documentation for system architecture
+- Migration guides and runbooks
+
+## Constraints & Assumptions
+
+### Technical Constraints
+- Must maintain PostgreSQL database compatibility
+- Must support existing Supabase storage integration
+- Must maintain Docker-based deployment
+- Must support multi-language interfaces
+
+### Business Constraints
+- Zero downtime migration requirement
+- Existing user training and workflows
+- Budget limitations for infrastructure changes
+- Timeline constraints for completion
+
+This PRD serves as the foundation for migrating COMETA from a legacy Streamlit system to a modern, secure, and scalable Next.js + FastAPI architecture while maintaining all existing functionality and improving overall system quality.
