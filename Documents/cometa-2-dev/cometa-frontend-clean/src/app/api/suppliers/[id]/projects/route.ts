@@ -28,7 +28,9 @@ export async function GET(
         ps.notes,
         ps.is_active,
         p.name as project_name,
-        p.description as project_description,
+        p.customer as project_customer,
+        p.city as project_city,
+        p.address as project_address,
         p.status as project_status,
         u.first_name || ' ' || u.last_name as assigned_by_name
       FROM project_suppliers ps
@@ -56,9 +58,11 @@ export async function GET(
           notes: parts[5] || '',
           is_active: parts[6] === 't',
           project_name: parts[7] || '',
-          project_description: parts[8] || '',
-          project_status: parts[9] || '',
-          assigned_by_name: parts[10] || ''
+          project_customer: parts[8] || '',
+          project_city: parts[9] || '',
+          project_address: parts[10] || '',
+          project_status: parts[11] || '',
+          assigned_by_name: parts[12] || ''
         });
       }
     }

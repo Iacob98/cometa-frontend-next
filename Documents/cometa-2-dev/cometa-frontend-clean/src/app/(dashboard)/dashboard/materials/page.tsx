@@ -55,10 +55,10 @@ import {
   useLowStockMaterials,
   useSuppliers,
   useAllocations,
-  useOrders,
   useDeleteMaterial,
   useAdjustStock,
 } from "@/hooks/use-materials";
+import { useMaterialOrders } from "@/hooks/use-material-orders";
 import { usePermissions } from "@/hooks/use-auth";
 import type { MaterialFilters, Material, MaterialUnit } from "@/types";
 
@@ -84,7 +84,7 @@ export default function MaterialsPage() {
   const { data: lowStockMaterials } = useLowStockMaterials();
   const { data: suppliers } = useSuppliers();
   const { data: allocationsResponse } = useAllocations({ page: 1, per_page: 10 });
-  const { data: ordersResponse } = useOrders({ page: 1, per_page: 10 });
+  const { data: ordersResponse } = useMaterialOrders({ page: 1, per_page: 10 });
 
   const materials = materialsResponse?.items || [];
   const allocations = allocationsResponse?.items || [];
@@ -171,9 +171,9 @@ export default function MaterialsPage() {
               <Building2 className="mr-2 h-4 w-4" />
               Suppliers
             </Button>
-            <Button onClick={() => router.push("/dashboard/materials/new")}>
+            <Button onClick={() => router.push("/dashboard/materials/order")}>
               <Plus className="mr-2 h-4 w-4" />
-              New Material
+              Order Materials
             </Button>
           </div>
         )}
@@ -1102,7 +1102,7 @@ const ProjectAllocationChart = () => {
 };
 
 const OrderStatusChart = () => {
-  const { data: ordersResponse } = useOrders({ page: 1, per_page: 100 });
+  const { data: ordersResponse } = useMaterialOrders({ page: 1, per_page: 100 });
   const orders = ordersResponse?.items || [];
 
   const statusData = orders.reduce((acc, order) => {
@@ -1152,7 +1152,7 @@ const OrderStatusChart = () => {
 };
 
 const OrderTrendsChart = () => {
-  const { data: ordersResponse } = useOrders({ page: 1, per_page: 100 });
+  const { data: ordersResponse } = useMaterialOrders({ page: 1, per_page: 100 });
   const orders = ordersResponse?.items || [];
 
   // Group orders by month for the last 6 months

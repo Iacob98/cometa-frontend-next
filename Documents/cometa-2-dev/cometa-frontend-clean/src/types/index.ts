@@ -266,15 +266,22 @@ export interface AuthUser extends User {
 export interface Material {
   id: UUID;
   name: string;
-  category: string;
+  category?: string;
   unit: MaterialUnit;
+  sku?: string;
+  default_price_eur?: number;
+  purchase_price_eur?: number;
   unit_cost: number;
   current_stock_qty: number;
+  reserved_qty?: number;
+  available_qty?: number;
   min_stock_level: number;
-  max_stock_level: number;
+  max_stock_level?: number;
   supplier_id?: UUID;
   description?: string;
   specifications?: Record<string, any>;
+  storage_location?: string;
+  last_updated?: string;
   created_at: string;
   updated_at: string;
   supplier?: Supplier;
@@ -309,20 +316,22 @@ export interface MaterialAllocation {
 
 export interface MaterialOrder {
   id: UUID;
-  supplier_id: UUID;
-  order_number: string;
+  project_id?: UUID;
+  supplier_material_id: UUID;
+  quantity: number;
+  unit_price_eur: number;
+  delivery_cost_eur?: number;
+  total_cost_eur: number;
   status: MaterialOrderStatus;
   order_date: string;
   expected_delivery_date?: string;
   actual_delivery_date?: string;
-  total_cost: number;
   notes?: string;
-  created_by: UUID;
-  created_at: string;
-  updated_at: string;
-  supplier?: Supplier;
-  creator?: User;
-  items?: MaterialOrderItem[];
+  ordered_by?: UUID;
+  created_at?: string;
+  supplier_material?: any; // SupplierMaterial type
+  project?: Project;
+  orderer?: User;
 }
 
 export interface MaterialOrderItem {
@@ -352,6 +361,46 @@ export type MaterialOrderStatus =
   | "ordered"
   | "delivered"
   | "cancelled";
+
+// Material Order Request types for project-based ordering
+export interface CreateMaterialOrderRequest {
+  project_id?: UUID;
+  supplier_material_id: UUID;
+  quantity: number;
+  unit_price_eur?: number; // If different from supplier price
+  delivery_cost_eur?: number;
+  expected_delivery_date?: string;
+  notes?: string;
+}
+
+export interface ProjectMaterialOrder extends MaterialOrder {
+  project_id: UUID;
+  project?: Project;
+}
+
+// Budget Integration for Material Orders
+export interface MaterialOrderBudgetImpact {
+  has_budget_impact: boolean;
+  transaction_id?: UUID;
+  amount_deducted?: number;
+  description?: string;
+  transaction_date?: string;
+  project_id?: UUID;
+  currency?: string;
+  message?: string;
+}
+
+export interface CreateBudgetTransactionRequest {
+  deduct_from_budget: boolean;
+}
+
+export interface BudgetTransactionResponse {
+  transaction_id: UUID;
+  amount_deducted: number;
+  description: string;
+  project_id: UUID;
+  currency: string;
+}
 
 export interface AllocationRequest {
   material_id: UUID;
